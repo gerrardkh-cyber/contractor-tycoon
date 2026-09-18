@@ -76,7 +76,24 @@ describe('inspection gates', () => {
 
 describe('balance figures', () => {
   it('carries the confirmed start state', () => {
-    expect(balance.start).toEqual({ cash: 60000, trust: 50, licenseTier: 1, siteSlots: 1, subLevel: 1 });
+    expect(balance.start).toEqual({ cash: 80000, trust: 50, licenseTier: 1, siteSlots: 1, subLevel: 1 });
+  });
+
+  it('splits the floor share across structural and mep', () => {
+    const structural = stages.find((stage) => stage.id === 'structural')!;
+    const mep = stages.find((stage) => stage.id === 'mep')!;
+    expect(structural.costShare).toBeCloseTo(0.35, 10);
+    expect(mep.costShare).toBeCloseTo(0.25, 10);
+    expect(structural.costShare + mep.costShare).toBeCloseTo(0.6, 10);
+    // Each floor stage now pays its own share at its own gate.
+    expect(structural.payShare).toBe(structural.costShare);
+    expect(mep.payShare).toBe(mep.costShare);
+  });
+
+  it('leaves no stage carrying cost it cannot bill for', () => {
+    for (const stage of stages) {
+      if (stage.costShare > 0) expect(stage.payShare).toBeGreaterThan(0);
+    }
   });
 
   it('keeps inspector weights at a full distribution', () => {

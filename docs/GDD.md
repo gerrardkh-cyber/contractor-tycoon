@@ -41,6 +41,7 @@ RFQ 게시판(3칸)
 
 **기준액 규칙(확정)**: 공정별 **cost 비율은 총공사비 `0.85 × P`의 배분**, **pay 비율은 낙찰금액의 배분**이다.
 유보금·선수금 차감도 **pay 기준**으로 계산한다. 낙찰금액이 움직여도 공사비는 움직이지 않는다.
+**기성은 각 공정이 자기 게이트를 통과할 때 자기 몫을 받는다.**
 
 ### 3.3 발주처 성향 (`client_trait`)
 `price` / `track` / `schedule` 세 종류. **입찰 화면에 표시된다.**
@@ -90,7 +91,8 @@ RFQ 게시판(3칸)
 ```
 foundation
   └ 층 루프 (floors 회)
-      structural n  →[게이트]→  mep n  →[게이트]→ 해당 층 기성
+      structural n  →[게이트]→ structural 몫 기성
+                     ├ mep n →[게이트]→ mep 몫 기성
                      └ 동시에 structural n+1 착수
   weatherproof
   final (fire → final) → CO
@@ -98,7 +100,7 @@ foundation
 
 - `mep n` 은 `structural n` 이 **검사 통과해야** 시작한다.
 - `structural n` 미통과 시 `structural n+1` 도 진입 불가.
-- 층별 기성은 **해당 층 mep 게이트 통과 시** 지급.
+- 층별 기성은 **두 몫으로 나뉘어 각 게이트 통과 시 각각** 지급된다 — `structural` 몫은 structural 게이트에서, `mep` 몫은 mep 게이트에서.
 
 ### 4.2 비용·정지
 - 단계 **비용은 시작 시 차감.**
@@ -197,7 +199,7 @@ foundation
 | `material_spike` | 다음에 시작하는 단계 비용 상승 (전역 1회성) |
 | `strict_inspector` | 프로젝트 시작 시 판정. 그 프로젝트 전 검사 확률 하락 |
 | `payment_delay` | 기성 입금 지연. `schedule` 성향에서 확률 2배 |
-| `change_order` | 프로젝트당 1회. **낙찰금액만 상승(공사비 불변 → 증액분은 전액 마진)** + 진행 중 단계 지연 |
+| `change_order` | 프로젝트당 1회. **발동 이후 잔여 기성만 상승(소급 없음, 공사비 불변 → 증액분은 전액 마진)** + 진행 중 단계 지연 |
 
 ### 9.1 선택형 이벤트 처리 원칙
 - core는 **판단하지 않는다.** 상태에 `pending_decision` 으로 **노출만** 한다.

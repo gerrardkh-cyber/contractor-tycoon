@@ -1,52 +1,75 @@
 [
   {
     "id": "foundation",
-    "subs": ["sitework"],
+    "subs": [
+      "sitework"
+    ],
     "baseSec": 40,
     "costShare": 0.15,
     "payShare": 0.15,
     "perFloor": false,
-    "gates": ["foundation"],
+    "gates": [
+      "foundation"
+    ],
     "blockedByRain": true
   },
   {
     "id": "structural",
-    "subs": ["structure"],
+    "subs": [
+      "structure"
+    ],
     "baseSec": 60,
-    "costShare": 0.6,
-    "payShare": 0,
+    "costShare": 0.35,
+    "payShare": 0.35,
     "perFloor": true,
-    "gates": ["structural"],
+    "gates": [
+      "structural"
+    ],
     "blockedByRain": true
   },
   {
     "id": "mep",
-    "subs": ["electrical", "plumbing", "fire"],
+    "subs": [
+      "electrical",
+      "plumbing",
+      "fire"
+    ],
     "baseSec": 45,
-    "costShare": 0,
-    "payShare": 0.6,
+    "costShare": 0.25,
+    "payShare": 0.25,
     "perFloor": true,
-    "gates": ["mep"],
+    "gates": [
+      "mep"
+    ],
     "blockedByRain": false
   },
   {
     "id": "weatherproof",
-    "subs": ["structure"],
+    "subs": [
+      "structure"
+    ],
     "baseSec": 30,
     "costShare": 0.1,
     "payShare": 0.1,
     "perFloor": false,
-    "gates": ["weatherproof"],
+    "gates": [
+      "weatherproof"
+    ],
     "blockedByRain": false
   },
   {
     "id": "final",
-    "subs": ["fire"],
+    "subs": [
+      "fire"
+    ],
     "baseSec": 30,
     "costShare": 0.15,
     "payShare": 0.15,
     "perFloor": false,
-    "gates": ["fire", "final"],
+    "gates": [
+      "fire",
+      "final"
+    ],
     "blockedByRain": false
   }
 ]

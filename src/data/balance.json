@@ -1,5 +1,11 @@
 {
-  "start": { "cash": 60000, "trust": 50, "licenseTier": 1, "siteSlots": 1, "subLevel": 1 },
+  "start": {
+    "cash": 80000,
+    "trust": 50,
+    "licenseTier": 1,
+    "siteSlots": 1,
+    "subLevel": 1
+  },
   "trust": {
     "min": 0,
     "max": 100,
@@ -13,11 +19,26 @@
     "defectClear": 3
   },
   "license": {
-    "unlocks": [{ "tier": 2, "completedProjects": 5, "cash": 500000 }]
+    "unlocks": [
+      {
+        "tier": 2,
+        "completedProjects": 5,
+        "cash": 500000
+      }
+    ]
   },
   "sites": {
     "maxSlots": 3,
-    "slotCosts": [{ "slot": 2, "cost": 150000 }, { "slot": 3, "cost": 600000 }]
+    "slotCosts": [
+      {
+        "slot": 2,
+        "cost": 150000
+      },
+      {
+        "slot": 3,
+        "cost": 600000
+      }
+    ]
   },
   "economy": {
     "constructionCostRatio": 0.85,
@@ -31,17 +52,41 @@
     "boardSlots": 3,
     "rotationSec": 90,
     "tiers": [
-      { "id": "low", "contractMultiplier": 0.9, "winChance": 0.8 },
-      { "id": "fair", "contractMultiplier": 1.0, "winChance": 0.5 },
-      { "id": "high", "contractMultiplier": 1.15, "winChance": 0.2 }
+      {
+        "id": "low",
+        "contractMultiplier": 0.9,
+        "winChance": 0.8
+      },
+      {
+        "id": "fair",
+        "contractMultiplier": 1.0,
+        "winChance": 0.5
+      },
+      {
+        "id": "high",
+        "contractMultiplier": 1.15,
+        "winChance": 0.2
+      }
     ],
     "consecutiveLossesForDirectAward": 3,
     "negotiatedTrustRequired": 70,
     "negotiatedChance": 0.1
   },
   "clientTraits": [
-    { "id": "price", "weight": 1, "winChanceDelta": { "low": 0.1, "high": -0.1 } },
-    { "id": "track", "weight": 1, "trustRequired": 70, "winChanceDeltaAll": 0.15 },
+    {
+      "id": "price",
+      "weight": 1,
+      "winChanceDelta": {
+        "low": 0.1,
+        "high": -0.1
+      }
+    },
+    {
+      "id": "track",
+      "weight": 1,
+      "trustRequired": 70,
+      "winChanceDeltaAll": 0.15
+    },
     {
       "id": "schedule",
       "weight": 1,
@@ -51,9 +96,30 @@
     }
   ],
   "inspectors": [
-    { "id": "lenient", "weight": 0.4, "basePassRate": 0.85, "minorMin": 0, "minorMax": 1, "contractMultiplier": 1.0 },
-    { "id": "normal", "weight": 0.4, "basePassRate": 0.7, "minorMin": 1, "minorMax": 2, "contractMultiplier": 1.05 },
-    { "id": "strict", "weight": 0.2, "basePassRate": 0.5, "minorMin": 2, "minorMax": 4, "contractMultiplier": 1.15 }
+    {
+      "id": "lenient",
+      "weight": 0.4,
+      "basePassRate": 0.85,
+      "minorMin": 0,
+      "minorMax": 1,
+      "contractMultiplier": 1.0
+    },
+    {
+      "id": "normal",
+      "weight": 0.4,
+      "basePassRate": 0.7,
+      "minorMin": 1,
+      "minorMax": 2,
+      "contractMultiplier": 1.05
+    },
+    {
+      "id": "strict",
+      "weight": 0.2,
+      "basePassRate": 0.5,
+      "minorMin": 2,
+      "minorMax": 4,
+      "contractMultiplier": 1.15
+    }
   ],
   "inspection": {
     "lowBidPenalty": 0.1,
@@ -64,7 +130,10 @@
     "reworkTimeRatio": 0.5,
     "reworkCostRatio": 0.3
   },
-  "punchList": { "costRatio": 0.003, "clearSec": 8 },
+  "punchList": {
+    "costRatio": 0.003,
+    "clearSec": 8
+  },
   "defect": {
     "warrantyFeeRatio": 0.01,
     "windowSec": 180,
@@ -75,15 +144,30 @@
     "costRatio": 0.05
   },
   "subcontractors": {
-    "ids": ["sitework", "structure", "electrical", "plumbing", "fire"],
+    "ids": [
+      "sitework",
+      "structure",
+      "electrical",
+      "plumbing",
+      "fire"
+    ],
     "maxLevel": 10,
     "upgradeBaseCost": 20000,
     "upgradeCostGrowth": 1.6,
     "timeMultiplierBase": 0.92,
     "inspectionBonusPerLevel": 0.015
   },
-  "offline": { "maxSec": 28800, "efficiency": 1.0 },
-  "save": { "autosaveSec": 10 },
-  "simulation": { "tickSec": 0.25 },
-  "boosts": { "doubleIncomeSec": 240 }
+  "offline": {
+    "maxSec": 28800,
+    "efficiency": 1.0
+  },
+  "save": {
+    "autosaveSec": 10
+  },
+  "simulation": {
+    "tickSec": 0.25
+  },
+  "boosts": {
+    "doubleIncomeSec": 240
+  }
 }

@@ -43,13 +43,15 @@ describe('stage shares read from the right base', () => {
   it('charges cost against the construction cost', () => {
     const project = awardProject(seeded(71), 'high', 'lowrise').projects[0]!;
     expect(stageCost(project, 'foundation')).toBeCloseTo(project.totalCost * 0.15, 6);
-    expect(stageCost(project, 'structural')).toBeCloseTo((project.totalCost * 0.6) / project.floors, 6);
+    expect(stageCost(project, 'structural')).toBeCloseTo((project.totalCost * 0.35) / project.floors, 6);
+    expect(stageCost(project, 'mep')).toBeCloseTo((project.totalCost * 0.25) / project.floors, 6);
   });
 
   it('pays against the awarded amount', () => {
     const project = awardProject(seeded(71), 'high', 'lowrise').projects[0]!;
     expect(stagePay(project, 'foundation')).toBeCloseTo(project.awarded * 0.15, 6);
-    expect(stagePay(project, 'mep')).toBeCloseTo((project.awarded * 0.6) / project.floors, 6);
+    expect(stagePay(project, 'structural')).toBeCloseTo((project.awarded * 0.35) / project.floors, 6);
+    expect(stagePay(project, 'mep')).toBeCloseTo((project.awarded * 0.25) / project.floors, 6);
   });
 });
 
@@ -73,13 +75,15 @@ describe('change order raises the contract only', () => {
   it('lifts every remaining progress payment by the same multiplier', () => {
     let state = awardProject(seeded(84), 'fair', 'lowrise');
     const before = state.projects[0]!;
-    const paysBefore = ['foundation', 'mep', 'weatherproof', 'final'].map((id) =>
+    const paysBefore = ['foundation', 'structural', 'mep', 'weatherproof', 'final'].map((id) =>
       stagePay(before, id),
     );
 
     state = advance(forceChangeOrderDue(state), 0.25, seeded(84));
     const after = state.projects[0]!;
-    const paysAfter = ['foundation', 'mep', 'weatherproof', 'final'].map((id) => stagePay(after, id));
+    const paysAfter = ['foundation', 'structural', 'mep', 'weatherproof', 'final'].map((id) =>
+      stagePay(after, id),
+    );
 
     paysAfter.forEach((pay, index) => {
       expect(pay).toBeCloseTo(paysBefore[index]! * CHANGE_ORDER_MULTIPLIER, 6);

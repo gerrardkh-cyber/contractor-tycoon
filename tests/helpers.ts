@@ -15,7 +15,10 @@ export function constantRng(value: number): Rng {
   };
 }
 
-/** Bids repeatedly until a site is under construction. Returns the state holding it. */
+/**
+ * Bids until a site is under construction. RFQs that do not match `typeId` are
+ * declined so the board churns instead of waiting out the rotation timer.
+ */
 export function awardProject(
   rng: Rng,
   tier: BidTierId = 'fair',
@@ -24,16 +27,16 @@ export function awardProject(
 ): GameState {
   let state = advance(startFrom ?? createInitialState(), 0.25, rng);
 
-  for (let attempt = 0; attempt < 2000; attempt += 1) {
+  for (let attempt = 0; attempt < 20000; attempt += 1) {
     if (state.projects.length > 0) return state;
 
-    const rfq = typeId
-      ? state.board.find((entry) => entry.typeId === typeId)
-      : state.board[0];
-
-    if (rfq) {
-      state = applyAction(state, { type: 'submitBid', rfqId: rfq.id, tier }, rng).state;
+    const match = typeId ? state.board.find((entry) => entry.typeId === typeId) : state.board[0];
+    if (match) {
+      state = applyAction(state, { type: 'submitBid', rfqId: match.id, tier }, rng).state;
+    } else if (state.board.length > 0) {
+      state = applyAction(state, { type: 'rejectRfq', rfqId: state.board[0]!.id }, rng).state;
     }
+
     if (state.projects.length > 0) return state;
     state = advance(state, 0.25, rng);
   }

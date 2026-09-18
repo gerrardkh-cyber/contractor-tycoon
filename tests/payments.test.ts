@@ -46,16 +46,23 @@ describe('stage cost and pay shares', () => {
   });
 
   it('splits the structural cost across floors', () => {
-    expect(stageCost(project, 'structural')).toBeCloseTo((project.totalCost * 0.6) / 3, 6);
+    expect(stageCost(project, 'structural')).toBeCloseTo((project.totalCost * 0.35) / 3, 6);
   });
 
-  it('charges nothing for mep - its cost sits in structural', () => {
-    expect(stageCost(project, 'mep')).toBe(0);
+  it('charges mep its own share of the floor cost', () => {
+    expect(stageCost(project, 'mep')).toBeCloseTo((project.totalCost * 0.25) / 3, 6);
   });
 
-  it('pays the floor share at the mep gate, not the structural gate', () => {
-    expect(stagePay(project, 'structural')).toBe(0);
-    expect(stagePay(project, 'mep')).toBeCloseTo((project.awarded * 0.6) / 3, 6);
+  it('keeps the two floor shares adding up to the old combined 0.60', () => {
+    expect(stageCost(project, 'structural') + stageCost(project, 'mep')).toBeCloseTo(
+      (project.totalCost * 0.6) / 3,
+      6,
+    );
+  });
+
+  it('pays each floor stage its own share at its own gate', () => {
+    expect(stagePay(project, 'structural')).toBeCloseTo((project.awarded * 0.35) / 3, 6);
+    expect(stagePay(project, 'mep')).toBeCloseTo((project.awarded * 0.25) / 3, 6);
   });
 
   it('spends exactly the fixed construction cost across all stages', () => {
@@ -172,15 +179,17 @@ describe('retainage and completion', () => {
 });
 
 describe('a site without the cash to start a stage stalls instead of going negative', () => {
+  // The starting capital now funds a first project, so the shortage is induced
+  // here on purpose: this covers the mechanism, not the balance.
   it('parks the stage, flags the site and never overdraws', () => {
     const rng = seeded(7);
     let state = awardProject(rng, 'fair', 'house');
+    state.company.cash = 1;
 
     let stalled = false;
-    for (let i = 0; i < 400 && !stalled; i += 1) {
+    for (let i = 0; i < 200 && !stalled; i += 1) {
       state = advance(state, 5, rng);
-      const project = state.projects[0];
-      if (project?.stalled) stalled = true;
+      if (state.projects[0]?.stalled) stalled = true;
       expect(state.company.cash).toBeGreaterThanOrEqual(0);
     }
 
@@ -190,5 +199,78 @@ describe('a site without the cash to start a stage stalls instead of going negat
     expect(blocked).toBeDefined();
     expect(state.company.cash).toBeLessThan(blocked!.pendingCostDue);
     expect(project.stalledSec).toBeGreaterThan(0);
+  });
+
+  it('resumes the parked stage once the money is there', () => {
+    const rng = seeded(7);
+    let state = awardProject(rng, 'fair', 'house');
+    state.company.cash = 1;
+
+    for (let i = 0; i < 200 && !state.projects[0]?.stalled; i += 1) {
+      state = advance(state, 5, rng);
+    }
+    expect(state.projects[0]!.stalled).toBe(true);
+
+    state = structuredClone(state);
+    state.company.cash = 1_000_000;
+    state = advance(state, 5, rng);
+
+    expect(state.projects[0]!.stalled).toBe(false);
+    expect(state.projects[0]!.tasks.some((task) => task.status === 'working')).toBe(true);
+  });
+});
+
+/** Runs one house to CO or until the budget runs out. Returns what happened. */
+function runHouse(seed: number, tier: 'low' | 'fair' | 'high') {
+  const rng = seeded(seed);
+  let state = awardProject(rng, tier, 'house');
+  let minCash = state.company.cash;
+  const stalledBefore = state.stats.totalStalledSec;
+
+  let deadlocked = false;
+  for (let i = 0; i < 900 && state.projects.length > 0; i += 1) {
+    const project = state.projects[0];
+    if (project && project.punchOpen > 0 && project.punchClearQueued === 0) {
+      state = applyAction(
+        state,
+        { type: 'clearPunchList', projectId: project.id, count: project.punchOpen },
+        rng,
+      ).state;
+    }
+    state = advance(state, 2, rng);
+    minCash = Math.min(minCash, state.company.cash);
+
+    // Stalled with nothing in flight means no money can ever arrive: dead.
+    if (state.projects[0]?.stalled && state.pendingPayments.length === 0) {
+      deadlocked = true;
+      break;
+    }
+  }
+
+  return {
+    deadlocked,
+    completed: state.company.completedProjects > 0,
+    minCash,
+    stalledSec: state.stats.totalStalledSec - stalledBefore,
+    bidTier: state.projects[0]?.bidTier ?? tier,
+  };
+}
+
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+describe('the starting capital funds a first house', () => {
+  it('finishes every fair-bid house without a single cash stall', () => {
+    for (const seed of SEEDS) {
+      const result = runHouse(seed, 'fair');
+      expect(result.completed, `seed ${seed} did not reach CO`).toBe(true);
+      expect(result.stalledSec, `seed ${seed} stalled`).toBe(0);
+      expect(result.minCash, `seed ${seed} ran the cash to zero`).toBeGreaterThan(0);
+    }
+  });
+
+  it.each(['low', 'fair', 'high'] as const)('never lets cash go negative on a %s bid', (tier) => {
+    for (const seed of SEEDS) {
+      expect(runHouse(seed, tier).minCash, `seed ${seed}`).toBeGreaterThanOrEqual(0);
+    }
   });
 });
