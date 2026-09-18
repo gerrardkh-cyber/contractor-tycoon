@@ -1,1 +1,43 @@
-[]
+[
+  {
+    "id": "rain",
+    "trigger": "interval",
+    "scope": "global",
+    "intervalSec": 60,
+    "chance": 0.15,
+    "durationMinSec": 30,
+    "durationMaxSec": 60,
+    "decision": { "id": "risky_pour", "defaultChoice": "wait" }
+  },
+  {
+    "id": "material_spike",
+    "trigger": "interval",
+    "scope": "global",
+    "intervalSec": 60,
+    "chance": 0.1,
+    "nextStageCostMultiplier": 1.15
+  },
+  {
+    "id": "strict_inspector",
+    "trigger": "projectStart",
+    "scope": "project",
+    "chance": 0.2,
+    "passRatePenalty": 0.1
+  },
+  {
+    "id": "payment_delay",
+    "trigger": "payment",
+    "scope": "payment",
+    "chance": 0.15,
+    "scheduleTraitChance": 0.3,
+    "delaySec": 60
+  },
+  {
+    "id": "change_order",
+    "trigger": "projectStart",
+    "scope": "project",
+    "chance": 0.25,
+    "contractMultiplier": 1.1,
+    "activeStageTimeMultiplier": 1.2
+  }
+]

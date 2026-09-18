@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "id": "foundation",
+    "subs": ["sitework"],
+    "baseSec": 40,
+    "costShare": 0.15,
+    "payShare": 0.15,
+    "perFloor": false,
+    "gates": ["foundation"],
+    "blockedByRain": true
+  },
+  {
+    "id": "structural",
+    "subs": ["structure"],
+    "baseSec": 60,
+    "costShare": 0.6,
+    "payShare": 0,
+    "perFloor": true,
+    "gates": ["structural"],
+    "blockedByRain": true
+  },
+  {
+    "id": "mep",
+    "subs": ["electrical", "plumbing", "fire"],
+    "baseSec": 45,
+    "costShare": 0,
+    "payShare": 0.6,
+    "perFloor": true,
+    "gates": ["mep"],
+    "blockedByRain": false
+  },
+  {
+    "id": "weatherproof",
+    "subs": ["structure"],
+    "baseSec": 30,
+    "costShare": 0.1,
+    "payShare": 0.1,
+    "perFloor": false,
+    "gates": ["weatherproof"],
+    "blockedByRain": false
+  },
+  {
+    "id": "final",
+    "subs": ["fire"],
+    "baseSec": 30,
+    "costShare": 0.15,
+    "payShare": 0.15,
+    "perFloor": false,
+    "gates": ["fire", "final"],
+    "blockedByRain": false
+  }
+]

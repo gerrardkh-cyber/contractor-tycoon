@@ -1,1 +1,14 @@
-[]
+[
+  { "id": "foundation", "subs": ["sitework"], "perFloor": false, "riskyPourApplies": false, "requiresZeroPunch": false },
+  { "id": "structural", "subs": ["structure"], "perFloor": true, "riskyPourApplies": true, "requiresZeroPunch": false },
+  { "id": "mep", "subs": ["electrical", "plumbing", "fire"], "perFloor": true, "riskyPourApplies": false, "requiresZeroPunch": false },
+  { "id": "weatherproof", "subs": ["structure"], "perFloor": false, "riskyPourApplies": false, "requiresZeroPunch": false },
+  { "id": "fire", "subs": ["fire"], "perFloor": false, "riskyPourApplies": false, "requiresZeroPunch": false },
+  {
+    "id": "final",
+    "subs": ["sitework", "structure", "electrical", "plumbing", "fire"],
+    "perFloor": false,
+    "riskyPourApplies": false,
+    "requiresZeroPunch": true
+  }
+]

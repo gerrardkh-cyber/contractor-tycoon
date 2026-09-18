@@ -1,10 +1,44 @@
-// src/core — pure simulation engine.
+// src/core - pure simulation engine.
 //
 // Contract (CLAUDE.md / docs/GDD.md):
 //   - No DOM, no Canvas, no imports from src/ui.
-//   - Input:  (state, deltaSeconds)
-//   - Output: a NEW state object. Never mutate the input.
-//   - All numbers come from src/data JSON, never from literals here.
-//
-// Order 001 is scaffolding only: no simulation implemented yet.
-export {};
+//   - advance(state, dtSec, rng) returns a NEW state. The input is never mutated.
+//   - Every number comes from src/data JSON. Nothing here is hardcoded.
+
+export { advance } from './advance';
+export { applyAction } from './actions';
+export { createInitialState } from './state';
+export { createRng, randInt, randRange, type Rng } from './rng';
+
+export {
+  adjustTrust,
+  gateInspectionBonus,
+  netWorth,
+  nextSiteSlotCost,
+  refreshLicense,
+  stageTimeMultiplier,
+  subInspectionBonus,
+  subTimeMultiplier,
+  upgradeCost,
+} from './company';
+
+export {
+  buildTasks,
+  deadlineSecFor,
+  expectedDurationSec,
+  findTask,
+  isComplete,
+  isLate,
+  prerequisitesMet,
+  stageCost,
+  stageDurationSec,
+  stagePay,
+  tasksOfStage,
+} from './project';
+
+export { passRateFor, passRateFrom, punchItemCost, type PassRateInputs } from './inspection';
+export { breakdownFor, type PaymentBreakdown } from './payments';
+export { contractAmountFor, constructionCostFor, refillBoard, winChanceFor } from './rfq';
+
+export * as data from './data';
+export type * from './types';

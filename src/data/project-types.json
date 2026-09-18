@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "house",
+    "category": "building",
+    "pipelineMode": "floorPipeline",
+    "floors": 1,
+    "baseContract": 150000,
+    "licenseTier": 1,
+    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+  },
+  {
+    "id": "lowrise",
+    "category": "building",
+    "pipelineMode": "floorPipeline",
+    "floors": 3,
+    "baseContract": 600000,
+    "licenseTier": 1,
+    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+  },
+  {
+    "id": "midrise",
+    "category": "building",
+    "pipelineMode": "floorPipeline",
+    "floors": 8,
+    "baseContract": 2000000,
+    "licenseTier": 2,
+    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+  }
+]

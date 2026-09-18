@@ -51,9 +51,10 @@ describe('src/core stays a pure simulation engine', () => {
 describe('src/data holds valid JSON', () => {
   const dataFiles = walk(join(ROOT, 'src', 'data')).filter((f) => extname(f) === '.json');
 
-  it('has the four template files', () => {
+  it('has the template files the engine loads', () => {
     const names = dataFiles.map((f) => f.split('/').pop());
     expect(names.sort()).toEqual([
+      'balance.json',
       'event-templates.json',
       'inspection-gates.json',
       'process-stages.json',

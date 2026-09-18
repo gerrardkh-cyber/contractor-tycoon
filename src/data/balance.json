@@ -1,0 +1,89 @@
+{
+  "start": { "cash": 60000, "trust": 50, "licenseTier": 1, "siteSlots": 1, "subLevel": 1 },
+  "trust": {
+    "min": 0,
+    "max": 100,
+    "inspectionPass": 2,
+    "inspectionMajorFail": -5,
+    "coOnTime": 10,
+    "coLate": -10,
+    "openMinorsPerPenalty": 5,
+    "openMinorPenalty": -1,
+    "defectOccurred": -5,
+    "defectClear": 3
+  },
+  "license": {
+    "unlocks": [{ "tier": 2, "completedProjects": 5, "cash": 500000 }]
+  },
+  "sites": {
+    "maxSlots": 3,
+    "slotCosts": [{ "slot": 2, "cost": 150000 }, { "slot": 3, "cost": 600000 }]
+  },
+  "economy": {
+    "constructionCostRatio": 0.85,
+    "retainageRatio": 0.1,
+    "advanceRatio": 0.1,
+    "advanceRecoveryRatio": 0.1,
+    "advanceTrustRequired": 60,
+    "deadlineMultiplier": 1.5
+  },
+  "bidding": {
+    "boardSlots": 3,
+    "rotationSec": 90,
+    "tiers": [
+      { "id": "low", "contractMultiplier": 0.9, "winChance": 0.8 },
+      { "id": "fair", "contractMultiplier": 1.0, "winChance": 0.5 },
+      { "id": "high", "contractMultiplier": 1.15, "winChance": 0.2 }
+    ],
+    "consecutiveLossesForDirectAward": 3,
+    "negotiatedTrustRequired": 70,
+    "negotiatedChance": 0.1
+  },
+  "clientTraits": [
+    { "id": "price", "weight": 1, "winChanceDelta": { "low": 0.1, "high": -0.1 } },
+    { "id": "track", "weight": 1, "trustRequired": 70, "winChanceDeltaAll": 0.15 },
+    {
+      "id": "schedule",
+      "weight": 1,
+      "deadlineMultiplier": 0.8,
+      "lateFinalPaymentMultiplier": 0.9,
+      "paymentDelayChance": 0.3
+    }
+  ],
+  "inspectors": [
+    { "id": "lenient", "weight": 0.4, "basePassRate": 0.85, "minorMin": 0, "minorMax": 1, "contractMultiplier": 1.0 },
+    { "id": "normal", "weight": 0.4, "basePassRate": 0.7, "minorMin": 1, "minorMax": 2, "contractMultiplier": 1.05 },
+    { "id": "strict", "weight": 0.2, "basePassRate": 0.5, "minorMin": 2, "minorMax": 4, "contractMultiplier": 1.15 }
+  ],
+  "inspection": {
+    "lowBidPenalty": 0.1,
+    "riskyPourPenalty": 0.2,
+    "strictInspectorEventPenalty": 0.1,
+    "minPassRate": 0.2,
+    "maxPassRate": 0.98,
+    "reworkTimeRatio": 0.5,
+    "reworkCostRatio": 0.3
+  },
+  "punchList": { "costRatio": 0.003, "clearSec": 8 },
+  "defect": {
+    "warrantyFeeRatio": 0.01,
+    "windowSec": 180,
+    "baseChance": 0.05,
+    "perMinorChance": 0.01,
+    "lowBidChance": 0.05,
+    "maxChance": 0.4,
+    "costRatio": 0.05
+  },
+  "subcontractors": {
+    "ids": ["sitework", "structure", "electrical", "plumbing", "fire"],
+    "maxLevel": 10,
+    "upgradeBaseCost": 20000,
+    "upgradeCostGrowth": 1.6,
+    "timeMultiplierBase": 0.92,
+    "inspectionBonusPerLevel": 0.015
+  },
+  "offline": { "maxSec": 28800, "efficiency": 1.0 },
+  "save": { "autosaveSec": 10 },
+  "simulation": { "tickSec": 0.25 },
+  "boosts": { "doubleIncomeSec": 240 }
+}
