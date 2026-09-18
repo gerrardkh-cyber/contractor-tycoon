@@ -1,13 +1,21 @@
 // Player actions. Pure: each returns a new state and never mutates the input.
 
 import { balance, requireProjectType } from './data';
-import { nextSiteSlotCost, upgradeCost } from './company';
+import { adjustTrust, nextSiteSlotCost, upgradeCost } from './company';
 import { rollProjectStartEvents } from './events';
-import { buildTasks, expectedDurationSec } from './project';
-import { constructionCostFor, contractAmountFor, replaceRfq, winChanceFor } from './rfq';
+import { buildTasks, expectedDurationSec, progressOf } from './project';
+import { canAffordBid, constructionCostFor, contractAmountFor, replaceRfq, winChanceFor } from './rfq';
 import { nextId } from './state';
 import type { Rng } from './rng';
-import type { Action, ActionResult, BidTierId, GameState, Project, Rfq, SubId } from './types';
+import type {
+  Action,
+  ActionResult,
+  BidTierId,
+  GameState,
+  Project,
+  Rfq,
+  SubId,
+} from './types';
 
 export function applyAction(state: GameState, action: Action, rng: Rng): ActionResult {
   const draft: GameState = structuredClone(state);
@@ -22,6 +30,8 @@ export function applyAction(state: GameState, action: Action, rng: Rng): ActionR
       return buySiteSlot(draft);
     case 'clearPunchList':
       return clearPunchList(draft, action.projectId, action.count);
+    case 'abandonProject':
+      return abandonProject(draft, action.projectId);
     case 'resolveDecision':
       return resolveDecision(draft, action.decisionId, action.choice);
   }
@@ -35,6 +45,8 @@ function submitBid(state: GameState, rfqId: string, tier: BidTierId, rng: Rng): 
   const rfq = state.board.find((entry) => entry.id === rfqId);
   if (!rfq) return fail(state, `no such rfq: ${rfqId}`);
   if (state.projects.length >= state.company.siteSlots) return fail(state, 'no free site slot');
+  // A job whose opening run of work cannot be funded may not be taken on.
+  if (!canAffordBid(state, rfq)) return fail(state, 'cash below the bid minimum');
 
   // A named or negotiated award is fair-only by definition.
   const tierId: BidTierId = rfq.directAward ? 'fair' : tier;
@@ -148,6 +160,46 @@ function clearPunchList(state: GameState, projectId: string, count: number): Act
   if (count <= 0) return fail(state, 'count must be positive');
 
   project.punchClearQueued = Math.min(project.punchOpen, Math.floor(count));
+  return { state, ok: true };
+}
+
+/**
+ * Walks away from a site. Retainage is forfeited in full, the unrecovered
+ * advance goes back at once - overdrawing if it has to, which the next income
+ * then pays down first - trust takes the hit and the slot frees immediately.
+ * Progress payments already in flight are not clawed back.
+ */
+function abandonProject(state: GameState, projectId: string): ActionResult {
+  const project = state.projects.find((entry) => entry.id === projectId);
+  if (!project) return fail(state, `no such project: ${projectId}`);
+
+  const rules = balance.abandon;
+  const retainageForfeited = rules.forfeitRetainage ? project.retainage : 0;
+  project.retainage -= retainageForfeited;
+
+  const advanceReturned = rules.returnAdvance ? project.advanceOutstanding : 0;
+  state.company.cash -= advanceReturned;
+  project.advanceOutstanding -= advanceReturned;
+
+  adjustTrust(state, rules.trustPenalty);
+
+  state.abandoned.push({
+    id: nextId(state, 'abn'),
+    projectId: project.id,
+    typeId: project.typeId,
+    bidTier: project.bidTier,
+    contractBase: project.contractBase,
+    abandonedAtSec: state.elapsedSec,
+    retainageForfeited,
+    advanceReturned,
+    progress: progressOf(project),
+  });
+  state.stats.abandonedProjects += 1;
+
+  state.projects = state.projects.filter((entry) => entry.id !== projectId);
+  state.pendingDecisions = state.pendingDecisions.filter(
+    (entry) => entry.projectId !== projectId,
+  );
   return { state, ok: true };
 }
 

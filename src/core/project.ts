@@ -115,6 +115,28 @@ export function stagePay(project: Project, stageId: string): number {
   return (project.awarded * stage.payShare) / divisor;
 }
 
+/**
+ * Cash a bidder must hold before it may take this job on: the stages named in
+ * balance.bidding.minCashStages, which is the first payment-free run of work.
+ */
+export function minCashToBid(typeId: string, contractBase: number): number {
+  const type = requireProjectType(typeId);
+  const totalCost = contractBase * balance.economy.constructionCostRatio;
+  let required = 0;
+  for (const stageId of balance.bidding.minCashStages) {
+    const stage = requireStage(stageId);
+    required += (totalCost * stage.costShare) / (stage.perFloor ? type.floors : 1);
+  }
+  return required;
+}
+
+/** Share of the task list that has passed its gates. */
+export function progressOf(project: Project): number {
+  if (project.tasks.length === 0) return 0;
+  const done = project.tasks.filter((task) => task.status === 'done').length;
+  return done / project.tasks.length;
+}
+
 export function isComplete(project: Project): boolean {
   return project.tasks.every((task) => task.status === 'done');
 }

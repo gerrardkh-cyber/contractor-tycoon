@@ -89,6 +89,20 @@ export interface Warranty {
   remainingSec: number;
 }
 
+/** What is left behind when a site is walked away from. Record only. */
+export interface AbandonedRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly typeId: string;
+  readonly bidTier: BidTierId;
+  readonly contractBase: number;
+  readonly abandonedAtSec: number;
+  readonly retainageForfeited: number;
+  readonly advanceReturned: number;
+  /** Fraction of the task list that had passed its gates. */
+  readonly progress: number;
+}
+
 export interface Rfq {
   readonly id: string;
   readonly typeId: string;
@@ -98,6 +112,8 @@ export interface Rfq {
   readonly inspector: InspectorId;
   readonly deadlineSec: number;
   readonly advanceAvailable: boolean;
+  /** Cash needed before this RFQ can be bid: foundation plus one floor of structural. */
+  readonly minCash: number;
   /** Named / negotiated award: fair only, wins with certainty. */
   readonly directAward: boolean;
   readonly postedAtSec: number;
@@ -150,6 +166,7 @@ export interface Stats {
   defectsOccurred: number;
   defectsCleared: number;
   lateCompletions: number;
+  abandonedProjects: number;
   /** Elapsed seconds at which cash first went negative, or null. */
   bankruptAtSec: number | null;
 }
@@ -162,6 +179,7 @@ export interface GameState {
   boardRotationInSec: number;
   projects: Project[];
   warranties: Warranty[];
+  abandoned: AbandonedRecord[];
   pendingPayments: PendingPayment[];
   pendingDecisions: PendingDecision[];
   weather: WeatherState;
@@ -178,6 +196,7 @@ export type Action =
   | { type: 'upgradeSub'; subId: SubId }
   | { type: 'buySiteSlot' }
   | { type: 'clearPunchList'; projectId: string; count: number }
+  | { type: 'abandonProject'; projectId: string }
   | { type: 'resolveDecision'; decisionId: string; choice: string };
 
 export interface ActionResult {

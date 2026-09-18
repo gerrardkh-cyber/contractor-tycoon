@@ -5,8 +5,14 @@ import { constantRng, seeded } from './helpers';
 
 const { balance } = data;
 
-function boardedState(rng = seeded(5)): GameState {
-  return advance(createInitialState(), 0.25, rng);
+function boardedState(rng = seeded(5), cash?: number): GameState {
+  const state = advance(createInitialState(), 0.25, rng);
+  return cash === undefined ? state : { ...state, company: { ...state.company, cash } };
+}
+
+/** Every RFQ is within reach, so the bid itself is what is under test. */
+function fundedBoard(rng = seeded(5)): GameState {
+  return boardedState(rng, 10_000_000);
 }
 
 function rfqWith(state: GameState, predicate: (rfq: Rfq) => boolean): Rfq | undefined {
@@ -100,7 +106,7 @@ describe('win chance', () => {
 describe('three consecutive losses earn a named bid', () => {
   it('flags the next posted RFQ as a direct award', () => {
     const losing = constantRng(0.999);
-    let state = boardedState(losing);
+    let state = fundedBoard(losing);
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const target = state.board[0]!;
@@ -115,7 +121,7 @@ describe('three consecutive losses earn a named bid', () => {
 
   it('does not flag anything before the third loss', () => {
     const losing = constantRng(0.999);
-    let state = boardedState(losing);
+    let state = fundedBoard(losing);
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
@@ -129,7 +135,7 @@ describe('three consecutive losses earn a named bid', () => {
   it('resets the counter on a win', () => {
     const losing = constantRng(0.999);
     const winning = constantRng(0);
-    let state = boardedState(losing);
+    let state = fundedBoard(losing);
 
     state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
     state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
@@ -142,7 +148,7 @@ describe('three consecutive losses earn a named bid', () => {
 
   it('forces a direct award to the fair tier', () => {
     const losing = constantRng(0.999);
-    let state = boardedState(losing);
+    let state = fundedBoard(losing);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
     }
@@ -157,7 +163,7 @@ describe('three consecutive losses earn a named bid', () => {
 describe('site slots', () => {
   it('refuses a bid when every site is occupied', () => {
     const winning = constantRng(0);
-    let state = boardedState(winning);
+    let state = fundedBoard(winning);
     state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, winning).state;
     expect(state.projects.length).toBe(1);
 
@@ -168,8 +174,7 @@ describe('site slots', () => {
 
   it('charges the listed price for each extra slot and stops at the cap', () => {
     const rng = seeded(4);
-    let state = boardedState(rng);
-    state.company.cash = 10_000_000;
+    const state = fundedBoard(rng);
 
     let result = applyAction(state, { type: 'buySiteSlot' }, rng);
     expect(result.ok).toBe(true);

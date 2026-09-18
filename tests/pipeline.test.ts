@@ -130,7 +130,7 @@ describe('pipeline invariants during a live run', () => {
   it('holds across a long seeded run', () => {
     for (const seed of [1, 7, 4242]) {
       const rng = seeded(seed);
-      let state = awardProject(rng, 'fair', 'lowrise');
+      let state = awardProject(rng, 'fair', 'lowrise', { cash: 5_000_000 });
       for (let i = 0; i < 400; i += 1) {
         state = advance(state, 2, rng);
         assertInvariants(state);

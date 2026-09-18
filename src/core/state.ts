@@ -38,6 +38,7 @@ export function createInitialState(): GameState {
     boardRotationInSec: balance.bidding.rotationSec,
     projects: [],
     warranties: [],
+    abandoned: [],
     pendingPayments: [],
     pendingDecisions: [],
     weather: {
@@ -62,6 +63,7 @@ export function createInitialState(): GameState {
       defectsOccurred: 0,
       defectsCleared: 0,
       lateCompletions: 0,
+      abandonedProjects: 0,
       bankruptAtSec: null,
     },
     nextId: 0,

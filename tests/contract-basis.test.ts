@@ -41,14 +41,14 @@ describe('construction cost is 0.85P and independent of the bid tier', () => {
 
 describe('stage shares read from the right base', () => {
   it('charges cost against the construction cost', () => {
-    const project = awardProject(seeded(71), 'high', 'lowrise').projects[0]!;
+    const project = awardProject(seeded(71), 'high', 'lowrise', { cash: 5_000_000 }).projects[0]!;
     expect(stageCost(project, 'foundation')).toBeCloseTo(project.totalCost * 0.15, 6);
     expect(stageCost(project, 'structural')).toBeCloseTo((project.totalCost * 0.35) / project.floors, 6);
     expect(stageCost(project, 'mep')).toBeCloseTo((project.totalCost * 0.25) / project.floors, 6);
   });
 
   it('pays against the awarded amount', () => {
-    const project = awardProject(seeded(71), 'high', 'lowrise').projects[0]!;
+    const project = awardProject(seeded(71), 'high', 'lowrise', { cash: 5_000_000 }).projects[0]!;
     expect(stagePay(project, 'foundation')).toBeCloseTo(project.awarded * 0.15, 6);
     expect(stagePay(project, 'structural')).toBeCloseTo((project.awarded * 0.35) / project.floors, 6);
     expect(stagePay(project, 'mep')).toBeCloseTo((project.awarded * 0.25) / project.floors, 6);
@@ -73,7 +73,7 @@ describe('change order raises the contract only', () => {
   });
 
   it('lifts every remaining progress payment by the same multiplier', () => {
-    let state = awardProject(seeded(84), 'fair', 'lowrise');
+    let state = awardProject(seeded(84), 'fair', 'lowrise', { cash: 5_000_000 });
     const before = state.projects[0]!;
     const paysBefore = ['foundation', 'structural', 'mep', 'weatherproof', 'final'].map((id) =>
       stagePay(before, id),
@@ -106,7 +106,7 @@ describe('change order raises the contract only', () => {
 describe('retainage and advance recovery read from the pay amount', () => {
   it('takes both cuts out of the gross progress payment, not the cost or P', () => {
     // A high bid, so the awarded amount, the cost and P are three different numbers.
-    const state = awardProject(seeded(91), 'high', 'lowrise');
+    const state = awardProject(seeded(91), 'high', 'lowrise', { cash: 5_000_000 });
     const project = structuredClone(state.projects[0]!);
     project.advanceOutstanding = 1_000_000;
 

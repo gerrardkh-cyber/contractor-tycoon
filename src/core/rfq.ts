@@ -9,7 +9,7 @@ import {
   requireClientTrait,
   requireProjectType,
 } from './data';
-import { deadlineSecFor } from './project';
+import { deadlineSecFor, minCashToBid } from './project';
 import { nextId } from './state';
 import { weightedPick, type Rng } from './rng';
 import type { BidTierId, GameState, Rfq } from './types';
@@ -24,6 +24,7 @@ export function createRfq(state: GameState, rng: Rng): Rfq {
   const trait = weightedPick(rng, clientTraits, (entry) => entry.weight);
   const inspector = weightedPick(rng, inspectors, (entry) => entry.weight);
 
+  const contractBase = type.baseContract * inspector.contractMultiplier;
   const owedNamedBid = state.company.pendingDirectAward;
   const negotiated =
     !owedNamedBid &&
@@ -35,11 +36,12 @@ export function createRfq(state: GameState, rng: Rng): Rfq {
   return {
     id: nextId(state, 'rfq'),
     typeId: type.id,
-    contractBase: type.baseContract * inspector.contractMultiplier,
+    contractBase,
     clientTrait: trait.id,
     inspector: inspector.id,
     deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1),
     advanceAvailable: state.company.trust >= balance.economy.advanceTrustRequired,
+    minCash: minCashToBid(type.id, contractBase),
     directAward: owedNamedBid || negotiated,
     postedAtSec: state.elapsedSec,
   };
@@ -72,6 +74,11 @@ export function tickBoard(state: GameState, dtSec: number, rng: Rng): void {
 export function replaceRfq(state: GameState, rfqId: string, rng: Rng): void {
   state.board = state.board.filter((rfq) => rfq.id !== rfqId);
   refillBoard(state, rng);
+}
+
+/** An RFQ below the bidder's means stays on the board but cannot be bid. */
+export function canAffordBid(state: GameState, rfq: Rfq): boolean {
+  return state.company.cash >= rfq.minCash;
 }
 
 export function winChanceFor(state: GameState, rfq: Rfq, tierId: BidTierId): number {

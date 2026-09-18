@@ -70,7 +70,11 @@
     ],
     "consecutiveLossesForDirectAward": 3,
     "negotiatedTrustRequired": 70,
-    "negotiatedChance": 0.1
+    "negotiatedChance": 0.1,
+    "minCashStages": [
+      "foundation",
+      "structural"
+    ]
   },
   "clientTraits": [
     {
@@ -128,7 +132,7 @@
     "minPassRate": 0.2,
     "maxPassRate": 0.98,
     "reworkTimeRatio": 0.5,
-    "reworkCostRatio": 0.3
+    "reworkCostRatio": 0.2
   },
   "punchList": {
     "costRatio": 0.003,
@@ -142,6 +146,11 @@
     "lowBidChance": 0.05,
     "maxChance": 0.4,
     "costRatio": 0.05
+  },
+  "abandon": {
+    "trustPenalty": -15,
+    "forfeitRetainage": true,
+    "returnAdvance": true
   },
   "subcontractors": {
     "ids": [

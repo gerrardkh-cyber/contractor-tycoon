@@ -1,6 +1,6 @@
 // Shared test helpers. Not a test file.
 
-import { advance, applyAction, createInitialState, createRng } from '../src/core';
+import { advance, applyAction, canAffordBid, createInitialState, createRng } from '../src/core';
 import type { BidTierId, GameState, Rng } from '../src/core';
 
 /** An rng that always returns the same value. Handy for forcing win/lose paths. */
@@ -16,21 +16,27 @@ export function constantRng(value: number): Rng {
 }
 
 /**
- * Bids until a site is under construction. RFQs that do not match `typeId` are
- * declined so the board churns instead of waiting out the rotation timer.
+ * Bids until a site is under construction. RFQs that do not match `typeId`, or
+ * that sit above the bid minimum, are skipped and the board is churned instead.
+ * `cash` tops the company up first, for jobs a starting company cannot bid on.
  */
 export function awardProject(
   rng: Rng,
   tier: BidTierId = 'fair',
   typeId?: string,
-  startFrom?: GameState,
+  options: { cash?: number; startFrom?: GameState } = {},
 ): GameState {
-  let state = advance(startFrom ?? createInitialState(), 0.25, rng);
+  let state = advance(options.startFrom ?? createInitialState(), 0.25, rng);
+  if (options.cash !== undefined) {
+    state = { ...state, company: { ...state.company, cash: options.cash } };
+  }
 
   for (let attempt = 0; attempt < 20000; attempt += 1) {
     if (state.projects.length > 0) return state;
 
-    const match = typeId ? state.board.find((entry) => entry.typeId === typeId) : state.board[0];
+    const candidates = typeId ? state.board.filter((entry) => entry.typeId === typeId) : state.board;
+    const match = candidates.find((entry) => canAffordBid(state, entry));
+
     if (match) {
       state = applyAction(state, { type: 'submitBid', rfqId: match.id, tier }, rng).state;
     } else if (state.board.length > 0) {

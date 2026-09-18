@@ -29,7 +29,9 @@ export {
   findTask,
   isComplete,
   isLate,
+  minCashToBid,
   prerequisitesMet,
+  progressOf,
   stageCost,
   stageDurationSec,
   stagePay,
@@ -38,7 +40,13 @@ export {
 
 export { passRateFor, passRateFrom, punchItemCost, type PassRateInputs } from './inspection';
 export { breakdownFor, type PaymentBreakdown } from './payments';
-export { contractAmountFor, constructionCostFor, refillBoard, winChanceFor } from './rfq';
+export {
+  canAffordBid,
+  contractAmountFor,
+  constructionCostFor,
+  refillBoard,
+  winChanceFor,
+} from './rfq';
 
 export * as data from './data';
 export type * from './types';

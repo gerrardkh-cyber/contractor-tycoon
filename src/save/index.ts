@@ -10,7 +10,7 @@
 import { advance, createInitialState, createRng, data, type GameState, type Rng } from '../core';
 
 export const SAVE_KEY = 'contractor-tycoon:save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface SaveData {
   version: number;
