@@ -1,0 +1,19 @@
+{
+  "name": "contractor-tycoon",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Idle construction tycoon. Web game portal build (offline-capable, no CDN).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.14",
+    "vitest": "^3.2.4"
+  }
+}
