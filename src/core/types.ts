@@ -150,6 +150,8 @@ export interface BoostState {
 
 export interface Company {
   cash: number;
+  /** Money owed. Cash never goes below zero; the overflow lands here instead. */
+  debt: number;
   trust: number;
   licenseTier: number;
   siteSlots: number;

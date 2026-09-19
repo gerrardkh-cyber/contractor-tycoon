@@ -1,10 +1,17 @@
 // Player actions. Pure: each returns a new state and never mutates the input.
 
 import { balance, requireProjectType } from './data';
-import { adjustTrust, nextSiteSlotCost, upgradeCost } from './company';
+import { adjustTrust, chargeCash, nextSiteSlotCost, upgradeCost } from './company';
 import { rollProjectStartEvents } from './events';
-import { buildTasks, expectedDurationSec, progressOf } from './project';
-import { canAffordBid, constructionCostFor, contractAmountFor, replaceRfq, winChanceFor } from './rfq';
+import { activeSiteCount, buildTasks, expectedDurationSec, progressOf } from './project';
+import {
+  canAffordBid,
+  constructionCostFor,
+  contractAmountFor,
+  isLifeline,
+  replaceRfq,
+  winChanceFor,
+} from './rfq';
 import { nextId } from './state';
 import type { Rng } from './rng';
 import type {
@@ -44,7 +51,11 @@ function fail(state: GameState, error: string): ActionResult {
 function submitBid(state: GameState, rfqId: string, tier: BidTierId, rng: Rng): ActionResult {
   const rfq = state.board.find((entry) => entry.id === rfqId);
   if (!rfq) return fail(state, `no such rfq: ${rfqId}`);
-  if (state.projects.length >= state.company.siteSlots) return fail(state, 'no free site slot');
+  // Lifeline work does not occupy a site slot: it has to be takeable even when
+  // every site is sitting stalled.
+  if (!isLifeline(rfq) && activeSiteCount(state) >= state.company.siteSlots) {
+    return fail(state, 'no free site slot');
+  }
   // A job whose opening run of work cannot be funded may not be taken on.
   if (!canAffordBid(state, rfq)) return fail(state, 'cash below the bid minimum');
 
@@ -178,8 +189,9 @@ function abandonProject(state: GameState, projectId: string): ActionResult {
   const retainageForfeited = rules.forfeitRetainage ? project.retainage : 0;
   project.retainage -= retainageForfeited;
 
+  // Returned out of cash as far as it goes; the rest becomes debt, never an overdraft.
   const advanceReturned = rules.returnAdvance ? project.advanceOutstanding : 0;
-  state.company.cash -= advanceReturned;
+  chargeCash(state, advanceReturned);
   project.advanceOutstanding -= advanceReturned;
 
   adjustTrust(state, rules.trustPenalty);

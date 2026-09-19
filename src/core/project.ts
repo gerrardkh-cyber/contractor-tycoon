@@ -131,6 +131,15 @@ export function minCashToBid(typeId: string, contractBase: number): number {
   return required;
 }
 
+export function isLifelineProject(project: Project): boolean {
+  return requireProjectType(project.typeId).lifeline === true;
+}
+
+/** Sites that count against the company's site slots. Lifeline work does not. */
+export function activeSiteCount(state: GameState): number {
+  return state.projects.filter((project) => !isLifelineProject(project)).length;
+}
+
 /** Share of the task list that has passed its gates. */
 export function progressOf(project: Project): number {
   if (project.tasks.length === 0) return 0;

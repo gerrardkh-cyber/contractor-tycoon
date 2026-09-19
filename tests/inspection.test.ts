@@ -66,20 +66,27 @@ describe('pass rate boundaries', () => {
     expect(rate).toBe(rules.maxPassRate);
   });
 
-  it('clamps at the floor when every penalty stacks on a strict inspector', () => {
-    const strictEvent = data.eventTemplates.find((entry) => entry.id === 'strict_inspector')!;
-    const raw =
-      baseOf('strict') - rules.lowBidPenalty - rules.riskyPourPenalty - strictEvent.passRatePenalty!;
-    expect(raw).toBeLessThan(rules.minPassRate);
-
+  it('clamps at the floor', () => {
+    // Raising strict to 0.60 lifted the worst reachable case above the floor,
+    // so the clamp itself is exercised with a synthetic base.
     const rate = passRateFrom({
-      inspectorBase: baseOf('strict'),
+      inspectorBase: 0.1,
       subBonus: 0,
       lowBid: true,
       riskyPour: true,
       strictInspectorEvent: true,
     });
     expect(rate).toBe(rules.minPassRate);
+  });
+
+  it('records how close the worst reachable combination gets to the floor', () => {
+    const strictEvent = data.eventTemplates.find((entry) => entry.id === 'strict_inspector')!;
+    const worst = Math.min(...inspectors.map((entry) => entry.basePassRate));
+    const reachable =
+      worst - rules.lowBidPenalty - rules.riskyPourPenalty - strictEvent.passRatePenalty!;
+
+    expect(reachable).toBeCloseTo(0.25, 10);
+    expect(reachable).toBeGreaterThan(rules.minPassRate);
   });
 
   it('never leaves the clamp range for any reachable combination', () => {

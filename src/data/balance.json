@@ -46,7 +46,11 @@
     "advanceRatio": 0.1,
     "advanceRecoveryRatio": 0.1,
     "advanceTrustRequired": 60,
-    "deadlineMultiplier": 1.5
+    "deadlineMultiplier": 1.5,
+    "minCash": 0
+  },
+  "debt": {
+    "repaymentShare": 0.5
   },
   "bidding": {
     "boardSlots": 3,
@@ -118,15 +122,15 @@
       "weight": 0.4,
       "basePassRate": 0.7,
       "minorMin": 1,
-      "minorMax": 2,
+      "minorMax": 3,
       "contractMultiplier": 1.05
     },
     {
       "id": "strict",
       "weight": 0.2,
-      "basePassRate": 0.5,
-      "minorMin": 2,
-      "minorMax": 4,
+      "basePassRate": 0.6,
+      "minorMin": 3,
+      "minorMax": 6,
       "contractMultiplier": 1.3
     }
   ],

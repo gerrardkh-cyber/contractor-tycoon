@@ -4,6 +4,7 @@ import {
   applyAction,
   canAffordBid,
   createInitialState,
+  creditCash,
   data,
   minCashToBid,
   stageCost,
@@ -60,7 +61,7 @@ describe('abandoning a site', () => {
     );
   });
 
-  it('lets the advance refund overdraw the account', () => {
+  it('books the part of the refund cash cannot cover as debt', () => {
     const state = siteWithRetainage(33);
     const draft = structuredClone(state);
     draft.projects[0]!.advanceOutstanding = 50_000;
@@ -73,11 +74,11 @@ describe('abandoning a site', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.state.company.cash).toBeCloseTo(1_000 - 50_000, 6);
-    expect(result.state.company.cash).toBeLessThan(0);
+    expect(result.state.company.cash).toBe(0);
+    expect(result.state.company.debt).toBeCloseTo(49_000, 6);
   });
 
-  it('pays the overdraft down out of the next income', () => {
+  it('pays the debt down out of income, at the configured share', () => {
     const state = siteWithRetainage(34);
     const draft = structuredClone(state);
     draft.projects[0]!.advanceOutstanding = 50_000;
@@ -88,11 +89,27 @@ describe('abandoning a site', () => {
       { type: 'abandonProject', projectId: draft.projects[0]!.id },
       seeded(1),
     ).state;
-    expect(next.company.cash).toBeLessThan(0);
+    expect(next.company.debt).toBeCloseTo(49_000, 6);
+    expect(next.company.cash).toBe(0);
 
-    const owed = -next.company.cash;
-    next = { ...next, company: { ...next.company, cash: next.company.cash + owed + 500 } };
-    expect(next.company.cash).toBeCloseTo(500, 6);
+    const income = 10_000;
+    const share = balance.debt.repaymentShare;
+    creditCash(next, income);
+
+    expect(next.company.debt).toBeCloseTo(49_000 - income * share, 6);
+    expect(next.company.cash).toBeCloseTo(income * (1 - share), 6);
+  });
+
+  it('clears the debt and banks the rest once income covers it', () => {
+    const state = siteWithRetainage(39);
+    const draft = structuredClone(state);
+    draft.company.cash = 0;
+    draft.company.debt = 1_000;
+
+    creditCash(draft, 10_000);
+    expect(draft.company.debt).toBe(0);
+    // 50% of the payment cleared the 1,000 owed; the remainder is all cash.
+    expect(draft.company.cash).toBeCloseTo(9_000, 6);
   });
 
   it('costs the configured amount of trust', () => {

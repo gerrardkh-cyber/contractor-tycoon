@@ -35,12 +35,16 @@ describe('the repair job', () => {
     expect(state.board.some(isLifeline)).toBe(true);
   });
 
-  it('only ever posts one, and keeps the board at its configured size', () => {
+  it('only ever posts one, in a slot of its own beside the board', () => {
     let state = brokeAndIdle(0);
     for (let i = 0; i < 40; i += 1) {
       state = advance(state, 30, seeded(9));
       expect(state.board.filter(isLifeline).length).toBe(1);
-      expect(state.board.length).toBe(balance.bidding.boardSlots);
+      // The three ordinary slots are untouched: the lifeline is the fourth.
+      expect(state.board.filter((rfq) => !isLifeline(rfq)).length).toBe(
+        balance.bidding.boardSlots,
+      );
+      expect(state.board.length).toBe(balance.bidding.boardSlots + 1);
     }
   });
 
@@ -98,12 +102,14 @@ describe('the repair job', () => {
     let state = brokeAndIdle(0, 41);
     const required = balance.license.unlocks[0]!.completedProjects;
 
-    for (let i = 0; i < 3000 && state.stats.repairCount <= required; i += 1) {
+    for (let i = 0; i < 4000 && state.stats.repairCount <= required; i += 1) {
       const repair = state.board.find(isLifeline);
       if (repair && state.projects.length === 0) {
         state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, rng).state;
       }
       state = advance(state, 1, rng);
+      // Held broke on purpose, so the lifeline keeps coming back.
+      state = { ...state, company: { ...state.company, cash: 0 } };
     }
 
     expect(state.stats.repairCount).toBeGreaterThan(required);
@@ -133,14 +139,46 @@ describe('the repair job', () => {
     expect(state.board.length).toBe(balance.bidding.boardSlots);
   });
 
-  it('is not posted while a site is running, however broke the company is', () => {
+  it('is not posted while a site is still making progress', () => {
+    const rng = seeded(13);
+    let state = awardProject(rng, 'fair', 'house');
+    state = advance(state, 0.25, rng);
+
+    expect(state.projects[0]!.stalled).toBe(false);
+    expect(state.board.some(isLifeline)).toBe(false);
+  });
+
+  it('is posted when every site is parked for lack of funds', () => {
     const rng = seeded(13);
     let state = awardProject(rng, 'fair', 'house');
     state = { ...state, company: { ...state.company, cash: 0 } };
-    state = advance(state, 0.25, rng);
 
+    for (let i = 0; i < 200 && !state.projects[0]?.stalled; i += 1) {
+      state = advance(state, 1, rng);
+    }
+
+    expect(state.projects[0]!.stalled).toBe(true);
+    expect(state.board.some(isLifeline)).toBe(true);
+  });
+
+  it('can be taken on even while a stalled site holds the only slot', () => {
+    const rng = seeded(13);
+    let state = awardProject(rng, 'fair', 'house');
+    state = { ...state, company: { ...state.company, cash: 0 } };
+
+    for (let i = 0; i < 200 && !state.board.some(isLifeline); i += 1) {
+      state = advance(state, 1, rng);
+    }
+
+    expect(state.company.siteSlots).toBe(1);
     expect(state.projects.length).toBe(1);
-    expect(state.board.some(isLifeline)).toBe(false);
+
+    const repair = state.board.find(isLifeline)!;
+    const result = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, rng);
+
+    // Lifeline work does not occupy a site slot.
+    expect(result.ok).toBe(true);
+    expect(result.state.projects.length).toBe(2);
   });
 
   it('never appears in the random RFQ rotation', () => {

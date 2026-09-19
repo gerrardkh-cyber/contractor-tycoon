@@ -26,6 +26,7 @@ export function createInitialState(): GameState {
     elapsedSec: 0,
     company: {
       cash: balance.start.cash,
+      debt: 0,
       trust: balance.start.trust,
       licenseTier: balance.start.licenseTier,
       siteSlots: balance.start.siteSlots,

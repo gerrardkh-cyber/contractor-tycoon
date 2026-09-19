@@ -12,6 +12,8 @@ export { createRng, randInt, randRange, type Rng } from './rng';
 
 export {
   adjustTrust,
+  chargeCash,
+  creditCash,
   gateInspectionBonus,
   netWorth,
   nextSiteSlotCost,

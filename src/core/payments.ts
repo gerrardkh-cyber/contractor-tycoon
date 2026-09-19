@@ -1,6 +1,8 @@
 // Progress payments, retainage, advance recovery and payment delay.
 
 import { balance, requireClientTrait, requireEvent } from './data';
+import { creditCash } from './company';
+import { isLifelineProject } from './project';
 import { nextId } from './state';
 import type { Rng } from './rng';
 import type { GameState, Project } from './types';
@@ -37,7 +39,8 @@ export function releaseProgressPayment(
   const template = requireEvent('payment_delay');
   const trait = requireClientTrait(project.clientTrait);
   const chance = trait.paymentDelayChance ?? template.chance;
-  const delayed = rng.next() < chance;
+  // A lifeline job pays out at once: it exists to unstick a broke company.
+  const delayed = !isLifelineProject(project) && rng.next() < chance;
 
   if (delayed) {
     state.pendingPayments.push({
@@ -47,7 +50,7 @@ export function releaseProgressPayment(
       dueAtSec: state.elapsedSec + (template.delaySec ?? 0),
     });
   } else {
-    state.company.cash += breakdown.net;
+    creditCash(state, breakdown.net);
   }
   return breakdown;
 }
@@ -57,7 +60,7 @@ export function releaseRetainage(state: GameState, project: Project): number {
   const amount = project.retainage;
   project.retainage = 0;
   project.paidOut += amount;
-  state.company.cash += amount;
+  creditCash(state, amount);
   return amount;
 }
 
@@ -65,7 +68,7 @@ export function tickPendingPayments(state: GameState): void {
   if (state.pendingPayments.length === 0) return;
   const due = state.pendingPayments.filter((payment) => payment.dueAtSec <= state.elapsedSec);
   if (due.length === 0) return;
-  for (const payment of due) state.company.cash += payment.amount;
+  for (const payment of due) creditCash(state, payment.amount);
   state.pendingPayments = state.pendingPayments.filter(
     (payment) => payment.dueAtSec > state.elapsedSec,
   );

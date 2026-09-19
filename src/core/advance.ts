@@ -2,7 +2,7 @@
 // it clones once, drives the clone forward in fixed ticks, and returns it.
 
 import { balance, requireClientTrait, requireProjectType, requireStage } from './data';
-import { adjustTrust, refreshLicense } from './company';
+import { adjustTrust, chargeCash, refreshLicense } from './company';
 import {
   applyChangeOrderIfDue,
   consumeCostMultiplier,
@@ -211,7 +211,7 @@ function completeProject(state: GameState, project: Project): void {
 
   const shortfall = project.punchCostAccrued - fromRetainage;
   if (shortfall > 0) {
-    state.company.cash -= shortfall;
+    chargeCash(state, shortfall);
     project.spent += shortfall;
   }
 
@@ -230,7 +230,7 @@ function completeProject(state: GameState, project: Project): void {
     if (penaltyUnits > 0) adjustTrust(state, penaltyUnits * balance.trust.openMinorPenalty);
 
     const fee = project.contractBase * balance.defect.warrantyFeeRatio;
-    state.company.cash -= fee;
+    chargeCash(state, fee);
     project.spent += fee;
 
     state.company.completedProjects += 1;
@@ -269,7 +269,7 @@ function tickWarranties(state: GameState, dtSec: number, rng: Rng): void {
       continue;
     }
     if (rng.next() < warranty.defectChance) {
-      state.company.cash -= warranty.contractBase * balance.defect.costRatio;
+      chargeCash(state, warranty.contractBase * balance.defect.costRatio);
       adjustTrust(state, balance.trust.defectOccurred);
       state.stats.defectsOccurred += 1;
     } else {

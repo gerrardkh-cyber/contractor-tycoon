@@ -44,6 +44,32 @@ export function nextSiteSlotCost(state: GameState): number | null {
   return entry ? entry.cost : null;
 }
 
+/**
+ * Spends what cash allows and books the rest as debt. Cash never goes below
+ * zero: every outflow that is not gated on affordability goes through here.
+ */
+export function chargeCash(state: GameState, amount: number): number {
+  if (amount <= 0) return 0;
+  const fromCash = Math.min(amount, state.company.cash);
+  state.company.cash -= fromCash;
+  const borrowed = amount - fromCash;
+  if (borrowed > 0) state.company.debt += borrowed;
+  return borrowed;
+}
+
+/** Income pays debt down first, at the share set in the data, then banks the rest. */
+export function creditCash(state: GameState, amount: number): number {
+  if (amount <= 0) return 0;
+  let remaining = amount;
+  if (state.company.debt > 0) {
+    const toDebt = Math.min(state.company.debt, amount * balance.debt.repaymentShare);
+    state.company.debt -= toDebt;
+    remaining -= toDebt;
+  }
+  state.company.cash += remaining;
+  return remaining;
+}
+
 export function adjustTrust(state: GameState, delta: number): void {
   const { min, max } = balance.trust;
   state.company.trust = Math.max(min, Math.min(max, state.company.trust + delta));
@@ -62,11 +88,11 @@ export function refreshLicense(state: GameState): void {
   }
 }
 
-/** Cash plus retainage still held by clients. Prestige is not implemented. */
+/** Cash plus retainage still held by clients, less debt. Prestige is not implemented. */
 export function netWorth(state: GameState): number {
   const held = state.projects.reduce((sum, project) => sum + project.retainage, 0);
   const inFlight = state.pendingPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  return state.company.cash + held + inFlight;
+  return state.company.cash + held + inFlight - state.company.debt;
 }
 
 export function initialSubLevels(): Record<SubId, number> {

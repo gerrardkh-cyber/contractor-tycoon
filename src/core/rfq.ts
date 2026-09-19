@@ -54,39 +54,43 @@ function createLifelineRfq(state: GameState): Rfq {
   };
 }
 
-/** No site running and nothing on the board within reach. Should never persist. */
+/** Nothing that can make progress and nothing on the board within reach. */
 export function isLockedOut(state: GameState): boolean {
-  return state.projects.length === 0 && !state.board.some((rfq) => canAffordBid(state, rfq));
+  return !hasRunnableSite(state) && !state.board.some((rfq) => canAffordBid(state, rfq));
 }
 
-/** Posts the repair job while the company is stuck, withdraws it once it is not. */
+/** A site counts as runnable unless it is parked for lack of funds. */
+function hasRunnableSite(state: GameState): boolean {
+  return state.projects.some((project) => !project.stalled);
+}
+
+/**
+ * Posts the repair job when no site can make progress and no ordinary RFQ is
+ * within reach, and withdraws it once either is true again. It takes a slot of
+ * its own beside the board, never one of the three, and only ever one at a time.
+ */
 export function syncLifeline(state: GameState, rng: Rng): void {
   const posted = state.board.some(isLifeline);
   const stuck =
-    state.projects.length === 0 &&
-    !state.board.some((rfq) => !isLifeline(rfq) && canAffordBid(state, rfq));
+    !hasRunnableSite(state) && !normalRfqs(state).some((rfq) => canAffordBid(state, rfq));
 
   if (stuck) {
-    if (posted) return;
-    if (state.board.length >= balance.bidding.boardSlots) state.board.splice(oldestIndex(state), 1);
-    state.board.push(createLifelineRfq(state));
+    if (!posted) state.board.push(createLifelineRfq(state));
     return;
   }
 
   if (posted) {
-    state.board = state.board.filter((rfq) => !isLifeline(rfq));
+    state.board = normalRfqs(state);
     refillBoard(state, rng);
   }
 }
 
-function oldestIndex(state: GameState): number {
-  let index = 0;
-  for (let i = 1; i < state.board.length; i += 1) {
-    const candidate = state.board[i];
-    const oldest = state.board[index];
-    if (candidate && oldest && candidate.postedAtSec < oldest.postedAtSec) index = i;
+function oldestNormalRfq(state: GameState): Rfq | undefined {
+  let oldest: Rfq | undefined;
+  for (const rfq of normalRfqs(state)) {
+    if (!oldest || rfq.postedAtSec < oldest.postedAtSec) oldest = rfq;
   }
-  return index;
+  return oldest;
 }
 
 export function createRfq(state: GameState, rng: Rng): Rfq {
@@ -117,9 +121,15 @@ export function createRfq(state: GameState, rng: Rng): Rfq {
   };
 }
 
+/** The lifeline sits in a slot of its own, so it never counts toward the board size. */
+function normalRfqs(state: GameState): Rfq[] {
+  return state.board.filter((rfq) => !isLifeline(rfq));
+}
+
 export function refillBoard(state: GameState, rng: Rng): void {
-  while (state.board.length < balance.bidding.boardSlots) {
-    state.board.push(createRfq(state, rng));
+  while (normalRfqs(state).length < balance.bidding.boardSlots) {
+    const lifeline = state.board.filter(isLifeline);
+    state.board = [...normalRfqs(state), createRfq(state, rng), ...lifeline];
   }
 }
 
@@ -133,7 +143,8 @@ export function tickBoard(state: GameState, dtSec: number, rng: Rng): void {
   }
   state.boardRotationInSec += balance.bidding.rotationSec;
 
-  state.board.splice(oldestIndex(state), 1);
+  const oldest = oldestNormalRfq(state);
+  if (oldest) state.board = state.board.filter((rfq) => rfq.id !== oldest.id);
   refillBoard(state, rng);
   syncLifeline(state, rng);
 }
@@ -145,8 +156,13 @@ export function replaceRfq(state: GameState, rfqId: string, rng: Rng): void {
   syncLifeline(state, rng);
 }
 
-/** An RFQ below the bidder's means stays on the board but cannot be bid. */
+/**
+ * An RFQ below the bidder's means stays on the board but cannot be bid.
+ * The lifeline is the exception: it is the way out of being broke, so it is
+ * always biddable, whatever the books say.
+ */
 export function canAffordBid(state: GameState, rfq: Rfq): boolean {
+  if (isLifeline(rfq)) return true;
   return state.company.cash >= rfq.minCash;
 }
 
