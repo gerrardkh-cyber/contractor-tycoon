@@ -32,6 +32,13 @@ export interface InspectorData {
   minorMin: number;
   minorMax: number;
   contractMultiplier: number;
+  /** Player trust needed before this inspector shows up on the board at all. */
+  trustRequired?: number;
+}
+
+export interface StageShare {
+  costShare: number;
+  payShare: number;
 }
 
 export interface StageData {
@@ -63,6 +70,8 @@ export interface ProjectTypeData {
   baseContract: number;
   licenseTier: number;
   stages: string[];
+  /** Per-type cost/pay split, overriding the stage defaults. */
+  stageShares?: Record<string, StageShare>;
 }
 
 export interface EventTemplateData {
@@ -141,6 +150,13 @@ export function requireInspector(id: InspectorId): InspectorData {
   const inspector = inspectorById[id];
   if (!inspector) throw new Error(`unknown inspector: ${id}`);
   return inspector;
+}
+
+/** The cost/pay split a type uses for a stage: its own override, else the default. */
+export function shareOf(typeId: string, stageId: string): StageShare {
+  const stage = requireStage(stageId);
+  const override = requireProjectType(typeId).stageShares?.[stageId];
+  return override ?? { costShare: stage.costShare, payShare: stage.payShare };
 }
 
 export function requireEvent(id: string): EventTemplateData {

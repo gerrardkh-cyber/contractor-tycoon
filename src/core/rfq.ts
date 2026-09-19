@@ -24,6 +24,14 @@ function eligibleTypes(state: GameState) {
   return eligible.length > 0 ? eligible : projectTypes.filter((type) => !type.lifeline).slice(0, 1);
 }
 
+/** Harsh inspectors only bid out work to companies with a record behind them. */
+function availableInspectors(state: GameState) {
+  const open = inspectors.filter(
+    (entry) => state.company.trust >= (entry.trustRequired ?? 0),
+  );
+  return open.length > 0 ? open : inspectors.slice(0, 1);
+}
+
 export function isLifeline(rfq: Rfq): boolean {
   return rfq.typeId === balance.lifeline.typeId;
 }
@@ -103,7 +111,7 @@ function oldestNormalRfq(state: GameState): Rfq | undefined {
 export function createRfq(state: GameState, rng: Rng): Rfq {
   const type = weightedPick(rng, eligibleTypes(state), () => 1);
   const trait = weightedPick(rng, clientTraits, (entry) => entry.weight);
-  const inspector = weightedPick(rng, inspectors, (entry) => entry.weight);
+  const inspector = weightedPick(rng, availableInspectors(state), (entry) => entry.weight);
 
   const contractBase = type.baseContract * inspector.contractMultiplier;
   const owedNamedBid = state.company.pendingDirectAward;

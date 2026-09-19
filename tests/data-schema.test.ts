@@ -24,7 +24,7 @@ describe('project types', () => {
 
   it('match the figures locked in BALANCE.md', () => {
     expect(projectTypes.map((type) => [type.id, type.floors, type.baseContract, type.licenseTier])).toEqual([
-      ['repair', 1, 2000, 1],
+      ['repair', 1, 3000, 1],
       ['house', 1, 150000, 1],
       ['lowrise', 3, 600000, 1],
       ['midrise', 8, 2000000, 2],
@@ -52,19 +52,31 @@ describe('process stages', () => {
 
   it('distributes the whole construction cost within each project type', () => {
     for (const type of projectTypes) {
-      const total = type.stages
-        .map((id) => stages.find((stage) => stage.id === id)!)
-        .reduce((sum, stage) => sum + stage.costShare * (stage.perFloor ? type.floors : 1) / (stage.perFloor ? type.floors : 1), 0);
+      const total = type.stages.reduce(
+        (sum, stageId) => sum + data.shareOf(type.id, stageId).costShare,
+        0,
+      );
       expect(total, type.id).toBeCloseTo(type.lifeline ? 0 : 1, 10);
     }
   });
 
   it('distributes the whole contract as progress payments within each project type', () => {
     for (const type of projectTypes) {
-      const total = type.stages
-        .map((id) => stages.find((stage) => stage.id === id)!)
-        .reduce((sum, stage) => sum + stage.payShare, 0);
+      const total = type.stages.reduce(
+        (sum, stageId) => sum + data.shareOf(type.id, stageId).payShare,
+        0,
+      );
       expect(total, type.id).toBeCloseTo(1, 10);
+    }
+  });
+
+  it('gives house its own split and leaves the taller types on the defaults', () => {
+    expect(data.projectTypeById['house']!.stageShares).toBeDefined();
+    expect(data.shareOf('house', 'structural')).toEqual({ costShare: 0.25, payShare: 0.25 });
+    // lowrise and midrise fall through to the stage defaults.
+    for (const id of ['lowrise', 'midrise']) {
+      expect(data.projectTypeById[id]!.stageShares, id).toBeUndefined();
+      expect(data.shareOf(id, 'structural').costShare, id).toBeCloseTo(0.35, 10);
     }
   });
 

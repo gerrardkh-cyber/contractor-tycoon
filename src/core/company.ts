@@ -81,7 +81,7 @@ export function refreshLicense(state: GameState): void {
     if (
       state.company.licenseTier < unlock.tier &&
       state.company.completedProjects >= unlock.completedProjects &&
-      state.company.cash >= unlock.cash
+      netWorth(state) >= unlock.netWorth
     ) {
       state.company.licenseTier = unlock.tier;
     }
@@ -91,8 +91,7 @@ export function refreshLicense(state: GameState): void {
 /** Cash plus retainage still held by clients, less debt. Prestige is not implemented. */
 export function netWorth(state: GameState): number {
   const held = state.projects.reduce((sum, project) => sum + project.retainage, 0);
-  const inFlight = state.pendingPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  return state.company.cash + held + inFlight - state.company.debt;
+  return state.company.cash + held - state.company.debt;
 }
 
 export function initialSubLevels(): Record<SubId, number> {

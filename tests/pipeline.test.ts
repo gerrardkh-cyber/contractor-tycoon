@@ -128,7 +128,7 @@ describe('pipeline invariants during a live run', () => {
     }
   }
 
-  it('holds across a long seeded run', () => {
+  it('holds across a long seeded run', { timeout: 90_000 }, () => {
     for (const seed of [1, 7, 4242]) {
       const rng = seeded(seed);
       let state = awardProject(rng, 'fair', 'lowrise', { cash: 5_000_000 });

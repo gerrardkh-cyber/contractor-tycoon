@@ -4,7 +4,14 @@
 //   task(stage i, floor f) waits for task(stage i, floor f-1)   - same crew, previous floor
 //                          and task(stage i-1, floor f)          - previous trade, same floor
 
-import { balance, requireProjectType, requireStage, type ProjectTypeData, type StageData } from './data';
+import {
+  balance,
+  requireProjectType,
+  requireStage,
+  shareOf,
+  type ProjectTypeData,
+  type StageData,
+} from './data';
 import { stageTimeMultiplier } from './company';
 import type { GameState, Project, Task } from './types';
 
@@ -105,14 +112,14 @@ export function stageDurationSec(state: GameState, stageId: string): number {
 export function stageCost(project: Project, stageId: string): number {
   const stage = requireStage(stageId);
   const divisor = stage.perFloor ? project.floors : 1;
-  return (project.totalCost * stage.costShare) / divisor;
+  return (project.totalCost * shareOf(project.typeId, stageId).costShare) / divisor;
 }
 
 /** Gross progress payment released when the stage's last gate passes. */
 export function stagePay(project: Project, stageId: string): number {
   const stage = requireStage(stageId);
   const divisor = stage.perFloor ? project.floors : 1;
-  return (project.awarded * stage.payShare) / divisor;
+  return (project.awarded * shareOf(project.typeId, stageId).payShare) / divisor;
 }
 
 /**
@@ -126,7 +133,8 @@ export function minCashToBid(typeId: string, contractBase: number): number {
   for (const stageId of balance.bidding.minCashStages) {
     if (!type.stages.includes(stageId)) continue;
     const stage = requireStage(stageId);
-    required += (totalCost * stage.costShare) / (stage.perFloor ? type.floors : 1);
+    const share = shareOf(typeId, stageId).costShare;
+    required += (totalCost * share) / (stage.perFloor ? type.floors : 1);
   }
   return required;
 }

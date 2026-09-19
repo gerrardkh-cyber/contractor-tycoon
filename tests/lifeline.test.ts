@@ -24,9 +24,21 @@ function brokeAndIdle(cash: number, seed = 5): GameState {
 
 describe('the repair job', () => {
   it('is not posted while real work is affordable', () => {
-    const state = advance(createInitialState(), 0.25, seeded(5));
-    expect(state.company.cash).toBe(80_000);
+    let state = advance(createInitialState(), 0.25, seeded(5));
+    state = { ...state, company: { ...state.company, cash: 10_000_000 } };
+    state = advance(state, 0.25, seeded(5));
+
+    expect(state.board.some((rfq) => canAffordBid(state, rfq) && !isLifeline(rfq))).toBe(true);
     expect(state.board.some(isLifeline)).toBe(false);
+  });
+
+  it('is posted at the start of a game whose board is all out of reach', () => {
+    // Three ordinary slots can all come up lowrise, which a starting company
+    // cannot fund; the repair job fills the gap until the board rotates.
+    const state = advance(createInitialState(), 0.25, seeded(5));
+    const affordable = state.board.filter((rfq) => !isLifeline(rfq) && canAffordBid(state, rfq));
+    expect(affordable.length).toBe(0);
+    expect(state.board.some(isLifeline)).toBe(true);
   });
 
   it('appears once nothing on the board can be bid and no site is running', () => {
@@ -291,8 +303,8 @@ describe('punch work is billed to the job, not to cash', () => {
 });
 
 describe('the lifeline cooldown', () => {
-  it('is configured at thirty seconds', () => {
-    expect(balance.lifeline.cooldownSec).toBe(30);
+  it('is configured at fifteen seconds', () => {
+    expect(balance.lifeline.cooldownSec).toBe(15);
   });
 
   it('starts when a repair closes and holds the next one back', () => {
@@ -342,12 +354,12 @@ describe('the lifeline cooldown', () => {
   it('pays the reduced contract', () => {
     let state = brokeAndIdle(0, 83);
     const repair = state.board.find(isLifeline)!;
-    expect(repair.contractBase).toBe(2_000);
+    expect(repair.contractBase).toBe(3_000);
 
     state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(83)).state;
     for (let i = 0; i < 300 && state.projects.length > 0; i += 1) state = advance(state, 1, seeded(83));
 
-    expect(state.company.cash).toBeCloseTo(2_000, 6);
+    expect(state.company.cash).toBeCloseTo(3_000, 6);
   });
 });
 

@@ -23,7 +23,7 @@
       {
         "tier": 2,
         "completedProjects": 5,
-        "cash": 150000
+        "netWorth": 150000
       }
     ]
   },
@@ -76,7 +76,8 @@
     "negotiatedTrustRequired": 70,
     "negotiatedChance": 0.1,
     "minCashStages": [
-      "foundation"
+      "foundation",
+      "structural"
     ]
   },
   "lifeline": {
@@ -84,7 +85,7 @@
     "clientTrait": "price",
     "inspector": "lenient",
     "advanceAvailable": false,
-    "cooldownSec": 30
+    "cooldownSec": 15
   },
   "clientTraits": [
     {
@@ -132,7 +133,8 @@
       "basePassRate": 0.6,
       "minorMin": 3,
       "minorMax": 6,
-      "contractMultiplier": 1.3
+      "contractMultiplier": 1.4,
+      "trustRequired": 60
     }
   ],
   "inspection": {

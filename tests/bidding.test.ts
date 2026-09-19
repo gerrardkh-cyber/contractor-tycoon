@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { advance, applyAction, createInitialState, data, winChanceFor } from '../src/core';
+import { advance, applyAction, createInitialState, data, isLifeline, winChanceFor } from '../src/core';
 import type { GameState, Rfq } from '../src/core';
 import { constantRng, seeded } from './helpers';
 
@@ -7,7 +7,9 @@ const { balance } = data;
 
 function boardedState(rng = seeded(5), cash?: number): GameState {
   const state = advance(createInitialState(), 0.25, rng);
-  return cash === undefined ? state : { ...state, company: { ...state.company, cash } };
+  if (cash === undefined) return state;
+  // Re-tick so the board resyncs against the new balance.
+  return advance({ ...state, company: { ...state.company, cash } }, 0.25, rng);
 }
 
 /** Every RFQ is within reach, so the bid itself is what is under test. */
@@ -20,9 +22,10 @@ function rfqWith(state: GameState, predicate: (rfq: Rfq) => boolean): Rfq | unde
 }
 
 describe('board', () => {
-  it('posts exactly the configured number of slots', () => {
-    const state = boardedState();
-    expect(state.board.length).toBe(balance.bidding.boardSlots);
+  it('posts exactly the configured number of ordinary slots', () => {
+    const state = fundedBoard();
+    expect(state.board.filter((rfq) => !isLifeline(rfq)).length).toBe(balance.bidding.boardSlots);
+    expect(state.board.some(isLifeline)).toBe(false);
   });
 
   it('hides project types above the current licence', () => {
@@ -33,7 +36,7 @@ describe('board', () => {
 
   it('replaces the oldest slot on the rotation interval', () => {
     const rng = seeded(8);
-    let state = boardedState(rng);
+    let state = fundedBoard(rng);
     const before = state.board.map((rfq) => rfq.id);
     state = advance(state, balance.bidding.rotationSec, rng);
     const after = state.board.map((rfq) => rfq.id);
