@@ -185,6 +185,8 @@ export interface GameState {
   board: Rfq[];
   /** Seconds until the oldest board slot rotates. */
   boardRotationInSec: number;
+  /** Seconds before the lifeline may be posted again after a repair closes. */
+  lifelineCooldownRemainingSec: number;
   projects: Project[];
   warranties: Warranty[];
   abandoned: AbandonedRecord[];

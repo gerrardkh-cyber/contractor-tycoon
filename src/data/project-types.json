@@ -5,7 +5,7 @@
     "pipelineMode": "floorPipeline",
     "lifeline": true,
     "floors": 1,
-    "baseContract": 10000,
+    "baseContract": 2000,
     "licenseTier": 1,
     "stages": [
       "repair"

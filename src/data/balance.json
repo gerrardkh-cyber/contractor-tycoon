@@ -83,7 +83,8 @@
     "typeId": "repair",
     "clientTrait": "price",
     "inspector": "lenient",
-    "advanceAvailable": false
+    "advanceAvailable": false,
+    "cooldownSec": 30
   },
   "clientTraits": [
     {

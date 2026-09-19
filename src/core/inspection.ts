@@ -77,6 +77,10 @@ export function gateBlockedByPunchList(project: Project, gateId: string): boolea
   return requireGate(gateId).requiresZeroPunch && project.punchOpen > 0;
 }
 
+/**
+ * Per floor, not per contract: gates are rolled floor by floor, so charging the
+ * whole contract for each one made punch work grow with the size of the job.
+ */
 export function punchItemCost(project: Project): number {
-  return project.contractBase * balance.punchList.costRatio;
+  return (project.contractBase / Math.max(1, project.floors)) * balance.punchList.costRatio;
 }

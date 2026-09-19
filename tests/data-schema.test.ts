@@ -24,7 +24,7 @@ describe('project types', () => {
 
   it('match the figures locked in BALANCE.md', () => {
     expect(projectTypes.map((type) => [type.id, type.floors, type.baseContract, type.licenseTier])).toEqual([
-      ['repair', 1, 10000, 1],
+      ['repair', 1, 2000, 1],
       ['house', 1, 150000, 1],
       ['lowrise', 3, 600000, 1],
       ['midrise', 8, 2000000, 2],

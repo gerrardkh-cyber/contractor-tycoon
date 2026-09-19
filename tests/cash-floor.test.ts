@@ -50,7 +50,8 @@ describe('cash never goes below zero', () => {
     expect(state.company.cash).toBeCloseTo(9_900, 6);
   });
 
-  it('holds across a long run at every bid tier', () => {
+  // Six long integration runs; it needs more than the suite default.
+  it('holds across a long run at every bid tier', { timeout: 90_000 }, () => {
     for (const tier of ['low', 'fair', 'high'] as const) {
       for (const seed of [3, 29]) {
         const rng = seeded(seed);

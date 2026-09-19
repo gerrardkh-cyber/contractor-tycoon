@@ -48,6 +48,9 @@ function stepOnce(state: GameState, dtSec: number, rng: Rng): void {
 
   tickWeather(state, dtSec, rng);
   tickMarket(state, dtSec, rng);
+  if (state.lifelineCooldownRemainingSec > 0) {
+    state.lifelineCooldownRemainingSec = Math.max(0, state.lifelineCooldownRemainingSec - dtSec);
+  }
   tickPendingPayments(state);
   tickBoard(state, dtSec, rng);
 
@@ -221,6 +224,7 @@ function completeProject(state: GameState, project: Project): void {
   // kept out of the licence count and settles no trust. It only gets counted.
   if (requireProjectType(project.typeId).lifeline) {
     state.stats.repairCount += 1;
+    state.lifelineCooldownRemainingSec = balance.lifeline.cooldownSec;
   } else {
     const late = isLate(state, project);
     adjustTrust(state, late ? balance.trust.coLate : balance.trust.coOnTime);

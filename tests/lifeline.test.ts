@@ -289,3 +289,122 @@ describe('punch work is billed to the job, not to cash', () => {
     expect(accrued).toBeLessThan(retainageAtPeak);
   });
 });
+
+describe('the lifeline cooldown', () => {
+  it('is configured at thirty seconds', () => {
+    expect(balance.lifeline.cooldownSec).toBe(30);
+  });
+
+  it('starts when a repair closes and holds the next one back', () => {
+    let state = brokeAndIdle(0, 71);
+    const repair = state.board.find(isLifeline)!;
+    state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(71)).state;
+
+    for (let i = 0; i < 300 && state.projects.length > 0; i += 1) state = advance(state, 1, seeded(71));
+    expect(state.stats.repairCount).toBe(1);
+    expect(state.lifelineCooldownRemainingSec).toBeGreaterThan(0);
+    expect(state.board.some(isLifeline)).toBe(false);
+  });
+
+  it('posts the next repair once the cooldown runs out', () => {
+    let state = brokeAndIdle(0, 73);
+    const repair = state.board.find(isLifeline)!;
+    state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(73)).state;
+    for (let i = 0; i < 300 && state.projects.length > 0; i += 1) state = advance(state, 1, seeded(73));
+
+    // Broke again, so the condition still holds: only the cooldown is in the way.
+    state = { ...state, company: { ...state.company, cash: 0 } };
+    state = advance(state, balance.lifeline.cooldownSec + 1, seeded(73));
+
+    expect(state.lifelineCooldownRemainingSec).toBe(0);
+    expect(state.board.some(isLifeline)).toBe(true);
+  });
+
+  it('counts the cooldown as waiting, not as being locked out', () => {
+    let state = brokeAndIdle(0, 79);
+    const repair = state.board.find(isLifeline)!;
+    state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(79)).state;
+
+    for (let i = 0; i < 400; i += 1) {
+      const next = state.board.find(isLifeline);
+      if (next && state.projects.length === 0) {
+        state = applyAction(state, { type: 'submitBid', rfqId: next.id, tier: 'fair' }, seeded(79)).state;
+      }
+      state = advance(state, 1, seeded(79));
+      // Held broke, so only the cooldown ever stands between jobs.
+      state = { ...state, company: { ...state.company, cash: 0 } };
+      expect(isLockedOut(state)).toBe(false);
+    }
+    expect(state.stats.lockedOutSec).toBe(0);
+    expect(state.stats.repairCount).toBeGreaterThan(1);
+  });
+
+  it('pays the reduced contract', () => {
+    let state = brokeAndIdle(0, 83);
+    const repair = state.board.find(isLifeline)!;
+    expect(repair.contractBase).toBe(2_000);
+
+    state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(83)).state;
+    for (let i = 0; i < 300 && state.projects.length > 0; i += 1) state = advance(state, 1, seeded(83));
+
+    expect(state.company.cash).toBeCloseTo(2_000, 6);
+  });
+});
+
+describe('punch work is priced per floor', () => {
+  it('charges P divided by the floor count', () => {
+    for (const typeId of ['house', 'lowrise', 'midrise']) {
+      const type = data.requireProjectType(typeId);
+      const project = {
+        contractBase: type.baseContract,
+        floors: type.floors,
+      } as Parameters<typeof punchItemCost>[0];
+
+      expect(punchItemCost(project), typeId).toBeCloseTo(
+        (type.baseContract / type.floors) * balance.punchList.costRatio,
+        6,
+      );
+    }
+  });
+
+  it('leaves a single-floor house where it was', () => {
+    const house = data.requireProjectType('house');
+    const project = { contractBase: house.baseContract, floors: 1 } as Parameters<
+      typeof punchItemCost
+    >[0];
+    expect(punchItemCost(project)).toBeCloseTo(house.baseContract * 0.003, 6);
+  });
+
+  it('cuts a midrise item to an eighth', () => {
+    const midrise = data.requireProjectType('midrise');
+    const perContract = midrise.baseContract * balance.punchList.costRatio;
+    const project = { contractBase: midrise.baseContract, floors: midrise.floors } as Parameters<
+      typeof punchItemCost
+    >[0];
+    expect(punchItemCost(project)).toBeCloseTo(perContract / 8, 6);
+  });
+
+  it('keeps total punch cost roughly flat across project sizes', () => {
+    // minors scale with gate count, which scales with floors; the per-floor
+    // price cancels that out so punch work stays a similar share of any job.
+    const share = (typeId: string, inspectorId: string): number => {
+      const type = data.requireProjectType(typeId);
+      const inspector = balance.inspectors.find((entry) => entry.id === inspectorId)!;
+      const gates = type.stages.reduce((sum, stageId) => {
+        const stage = data.requireStage(stageId);
+        return sum + stage.gates.length * (stage.perFloor ? type.floors : 1);
+      }, 0);
+      const minors = ((inspector.minorMin + inspector.minorMax) / 2) * gates;
+      return (minors * (type.baseContract / type.floors) * balance.punchList.costRatio) /
+        type.baseContract;
+    };
+
+    for (const inspectorId of ['lenient', 'normal', 'strict']) {
+      const house = share('house', inspectorId);
+      const midrise = share('midrise', inspectorId);
+      // Before this change the midrise share was 3.3x the house share.
+      expect(midrise, inspectorId).toBeLessThan(house);
+    }
+    expect(share('midrise', 'strict')).toBeCloseTo(0.03375, 5);
+  });
+});

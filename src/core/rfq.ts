@@ -54,8 +54,12 @@ function createLifelineRfq(state: GameState): Rfq {
   };
 }
 
-/** Nothing that can make progress and nothing on the board within reach. */
+/**
+ * Nothing that can make progress and nothing on the board within reach.
+ * A lifeline cooldown does not count: the way out is on its way, just delayed.
+ */
 export function isLockedOut(state: GameState): boolean {
+  if (state.lifelineCooldownRemainingSec > 0) return false;
   return !hasRunnableSite(state) && !state.board.some((rfq) => canAffordBid(state, rfq));
 }
 
@@ -75,7 +79,10 @@ export function syncLifeline(state: GameState, rng: Rng): void {
     !hasRunnableSite(state) && !normalRfqs(state).some((rfq) => canAffordBid(state, rfq));
 
   if (stuck) {
-    if (!posted) state.board.push(createLifelineRfq(state));
+    // Held back while the cooldown from the last repair runs down.
+    if (!posted && state.lifelineCooldownRemainingSec <= 0) {
+      state.board.push(createLifelineRfq(state));
+    }
     return;
   }
 

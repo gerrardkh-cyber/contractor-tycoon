@@ -37,6 +37,7 @@ export function createInitialState(): GameState {
     },
     board: [],
     boardRotationInSec: balance.bidding.rotationSec,
+    lifelineCooldownRemainingSec: 0,
     projects: [],
     warranties: [],
     abandoned: [],

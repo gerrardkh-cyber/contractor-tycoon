@@ -25,12 +25,14 @@ export {
 } from './company';
 
 export {
+  activeSiteCount,
   buildTasks,
   deadlineSecFor,
   expectedDurationSec,
   findTask,
   isComplete,
   isLate,
+  isLifelineProject,
   minCashToBid,
   prerequisitesMet,
   progressOf,
