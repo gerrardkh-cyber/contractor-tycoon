@@ -56,7 +56,7 @@ function createLifelineRfq(state: GameState): Rfq {
     inspector: inspector.id,
     deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1),
     advanceAvailable: config.advanceAvailable,
-    minCash: minCashToBid(type.id, contractBase),
+    minCash: minCashToBid(type.id),
     directAward: true,
     postedAtSec: state.elapsedSec,
   };
@@ -130,7 +130,7 @@ export function createRfq(state: GameState, rng: Rng): Rfq {
     inspector: inspector.id,
     deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1),
     advanceAvailable: state.company.trust >= balance.economy.advanceTrustRequired,
-    minCash: minCashToBid(type.id, contractBase),
+    minCash: minCashToBid(type.id),
     directAward: owedNamedBid || negotiated,
     postedAtSec: state.elapsedSec,
   };
@@ -203,8 +203,13 @@ export function contractAmountFor(rfq: Rfq, tierId: BidTierId): number {
   return rfq.contractBase * requireBidTier(tierId).contractMultiplier;
 }
 
+/**
+ * The build costs what it costs. An inspector's multiplier is a premium on the
+ * contract, not an inflation of the work, so cost is priced off the type's base
+ * contract before any multiplier.
+ */
 export function constructionCostFor(rfq: Rfq): number {
-  return rfq.contractBase * balance.economy.constructionCostRatio;
+  return requireProjectType(rfq.typeId).baseContract * balance.economy.constructionCostRatio;
 }
 
 export function typeOf(rfq: Rfq) {

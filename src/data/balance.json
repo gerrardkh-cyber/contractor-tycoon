@@ -133,7 +133,7 @@
       "basePassRate": 0.6,
       "minorMin": 3,
       "minorMax": 6,
-      "contractMultiplier": 1.4,
+      "contractMultiplier": 1.25,
       "trustRequired": 60
     }
   ],

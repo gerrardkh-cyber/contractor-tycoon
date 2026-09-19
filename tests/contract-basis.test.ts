@@ -3,7 +3,7 @@ import { advance, breakdownFor, data, stageCost, stagePay } from '../src/core';
 import type { GameState } from '../src/core';
 import { awardProject, seeded } from './helpers';
 
-const { balance, requireEvent } = data;
+const { balance, requireEvent, requireProjectType } = data;
 const CHANGE_ORDER_MULTIPLIER = requireEvent('change_order').contractMultiplier ?? 1;
 
 /** Makes the scheduled change order due on the next tick. */
@@ -15,27 +15,57 @@ function forceChangeOrderDue(state: GameState): GameState {
   return next;
 }
 
-describe('construction cost is 0.85P and independent of the bid tier', () => {
-  it.each(['low', 'fair', 'high'] as const)('holds for a %s bid', (tier) => {
+describe('construction cost is priced off the base contract', () => {
+  it.each(['low', 'fair', 'high'] as const)('does not move with a %s bid', (tier) => {
     const state = awardProject(seeded(40 + tier.length), tier, 'house');
     const project = state.projects[0]!;
+    const type = requireProjectType('house');
     expect(project.totalCost).toBeCloseTo(
-      project.contractBase * balance.economy.constructionCostRatio,
+      type.baseContract * balance.economy.constructionCostRatio,
       6,
     );
+  });
+
+  it('does not move with the inspector either', () => {
+    // The inspector multiplier is a premium on the contract, not on the work.
+    const seen = new Map<string, Set<number>>();
+    for (const seed of [5, 13, 21, 34, 55, 89, 144, 233]) {
+      const state = awardProject(seeded(seed), 'fair', 'house', { cash: 10_000_000 });
+      const project = state.projects[0]!;
+      const bucket = seen.get(project.inspector) ?? new Set<number>();
+      bucket.add(Math.round(project.totalCost));
+      seen.set(project.inspector, bucket);
+    }
+
+    const type = requireProjectType('house');
+    const expected = Math.round(type.baseContract * balance.economy.constructionCostRatio);
+    for (const [inspector, costs] of seen) {
+      expect([...costs], inspector).toEqual([expected]);
+    }
   });
 
   it('moves the awarded amount but not the cost', () => {
     // A losing streak can turn the win into a named bid, which is fair-only,
     // so the tier is read off the project rather than assumed from the request.
+    const type = requireProjectType('house');
     for (const requested of ['low', 'fair', 'high'] as const) {
       const project = awardProject(seeded(61), requested, 'house').projects[0]!;
       const multiplier = balance.bidding.tiers.find((entry) => entry.id === project.bidTier)!
         .contractMultiplier;
 
-      expect(project.totalCost).toBeCloseTo(project.contractBase * 0.85, 6);
+      expect(project.totalCost).toBeCloseTo(type.baseContract * 0.85, 6);
       expect(project.awarded).toBeCloseTo(project.contractBase * multiplier, 6);
     }
+  });
+
+  it('keeps the inspector premium entirely on the pay side', () => {
+    const type = requireProjectType('house');
+    for (const inspector of balance.inspectors) {
+      const contractBase = type.baseContract * inspector.contractMultiplier;
+      // Pay scales with the premium, cost does not.
+      expect(contractBase / type.baseContract).toBeCloseTo(inspector.contractMultiplier, 10);
+    }
+    expect(balance.inspectors.find((entry) => entry.id === 'strict')!.contractMultiplier).toBe(1.25);
   });
 });
 

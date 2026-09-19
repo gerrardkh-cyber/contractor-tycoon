@@ -125,10 +125,11 @@ export function stagePay(project: Project, stageId: string): number {
 /**
  * Cash a bidder must hold before it may take this job on: the stages named in
  * balance.bidding.minCashStages, which is the first payment-free run of work.
+ * Priced off the build cost, so it does not move with the inspector.
  */
-export function minCashToBid(typeId: string, contractBase: number): number {
+export function minCashToBid(typeId: string): number {
   const type = requireProjectType(typeId);
-  const totalCost = contractBase * balance.economy.constructionCostRatio;
+  const totalCost = type.baseContract * balance.economy.constructionCostRatio;
   let required = 0;
   for (const stageId of balance.bidding.minCashStages) {
     if (!type.stages.includes(stageId)) continue;

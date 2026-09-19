@@ -218,7 +218,7 @@ describe('lock-out cannot happen', () => {
   it('a broke idle company can repair its way back to real work', () => {
     const rng = seeded(29);
     let state = brokeAndIdle(0, 29);
-    const houseEntry = minCashToBid('house', requireProjectType('house').baseContract);
+    const houseEntry = minCashToBid('house');
 
     for (let i = 0; i < 2000 && state.company.cash < houseEntry; i += 1) {
       const repair = state.board.find(isLifeline);

@@ -180,35 +180,51 @@ describe('bid eligibility floor', () => {
     expect(balance.bidding.minCashStages).toEqual(['foundation', 'structural']);
 
     for (const type of data.projectTypes) {
-      const base = type.baseContract;
       const project = {
         typeId: type.id,
         floors: type.floors,
-        totalCost: base * balance.economy.constructionCostRatio,
+        totalCost: type.baseContract * balance.economy.constructionCostRatio,
       } as never as Parameters<typeof stageCost>[0];
 
       const expected = balance.bidding.minCashStages
         .filter((stageId) => type.stages.includes(stageId))
         .reduce((sum, stageId) => sum + stageCost(project, stageId), 0);
 
-      expect(minCashToBid(type.id, base), type.id).toBeCloseTo(expected, 6);
+      expect(minCashToBid(type.id), type.id).toBeCloseTo(expected, 6);
     }
   });
 
   it('matches the figures recorded in BALANCE.md', () => {
-    expect(minCashToBid('house', 150_000)).toBeCloseTo(57_375, 6);
-    expect(minCashToBid('lowrise', 600_000)).toBeCloseTo(136_000, 6);
-    expect(minCashToBid('midrise', 2_000_000)).toBeCloseTo(329_375, 6);
+    expect(minCashToBid('house')).toBeCloseTo(57_375, 6);
+    expect(minCashToBid('lowrise')).toBeCloseTo(136_000, 6);
+    expect(minCashToBid('midrise')).toBeCloseTo(329_375, 6);
+  });
+
+  it('does not move with the inspector', () => {
+    const rng = seeded(101);
+    let state = advance(createInitialState(), 0.25, rng);
+    state = { ...state, company: { ...state.company, cash: 10_000_000, trust: 100 } };
+
+    const seen = new Map<string, number>();
+    for (let i = 0; i < 80; i += 1) {
+      state = advance(state, 95, rng);
+      for (const rfq of state.board) {
+        const previous = seen.get(rfq.typeId);
+        if (previous !== undefined) expect(rfq.minCash, rfq.typeId).toBeCloseTo(previous, 6);
+        seen.set(rfq.typeId, rfq.minCash);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(1);
   });
 
   it('asks nothing of the lifeline repair job', () => {
-    expect(minCashToBid('repair', 3_000)).toBe(0);
+    expect(minCashToBid('repair')).toBe(0);
   });
 
   it('is published on every RFQ', () => {
     const state = advance(createInitialState(), 0.25, seeded(12));
     for (const rfq of state.board) {
-      expect(rfq.minCash).toBeCloseTo(minCashToBid(rfq.typeId, rfq.contractBase), 6);
+      expect(rfq.minCash).toBeCloseTo(minCashToBid(rfq.typeId), 6);
     }
   });
 
@@ -242,10 +258,11 @@ describe('bid eligibility floor', () => {
   it('lets a starting company reach house but nothing taller', () => {
     const state = advance(createInitialState(), 0.25, seeded(23));
     expect(state.company.cash).toBe(80_000);
-    expect(minCashToBid('house', requireProjectType('house').baseContract)).toBeLessThan(80_000);
+    expect(minCashToBid('house')).toBeLessThan(80_000);
     for (const id of ['lowrise', 'midrise']) {
-      expect(minCashToBid(id, requireProjectType(id).baseContract), id).toBeGreaterThan(80_000);
+      expect(minCashToBid(id), id).toBeGreaterThan(80_000);
     }
+    expect(requireProjectType('house').baseContract).toBe(150_000);
   });
 });
 
