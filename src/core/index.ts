@@ -42,6 +42,8 @@ export { passRateFor, passRateFrom, punchItemCost, type PassRateInputs } from '.
 export { breakdownFor, type PaymentBreakdown } from './payments';
 export {
   canAffordBid,
+  isLifeline,
+  isLockedOut,
   contractAmountFor,
   constructionCostFor,
   refillBoard,

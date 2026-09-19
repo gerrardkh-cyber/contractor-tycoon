@@ -97,6 +97,7 @@ function createProject(state: GameState, rfq: Rfq, tierId: BidTierId, rng: Rng):
     advanceOutstanding: 0,
     punchOpen: 0,
     punchTotalGenerated: 0,
+    punchCostAccrued: 0,
     punchClearElapsedSec: 0,
     punchClearQueued: 0,
     events: {

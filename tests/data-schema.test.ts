@@ -24,10 +24,16 @@ describe('project types', () => {
 
   it('match the figures locked in BALANCE.md', () => {
     expect(projectTypes.map((type) => [type.id, type.floors, type.baseContract, type.licenseTier])).toEqual([
+      ['repair', 1, 10000, 1],
       ['house', 1, 150000, 1],
       ['lowrise', 3, 600000, 1],
       ['midrise', 8, 2000000, 2],
     ]);
+  });
+
+  it('marks exactly one type as the lifeline', () => {
+    expect(projectTypes.filter((type) => type.lifeline).map((type) => type.id)).toEqual(['repair']);
+    expect(balance.lifeline.typeId).toBe('repair');
   });
 });
 
@@ -35,19 +41,31 @@ describe('process stages', () => {
   it('only reference gates that exist', () => {
     const known = new Set(gates.map((gate) => gate.id));
     for (const stage of stages) {
-      expect(stage.gates.length).toBeGreaterThan(0);
       for (const gateId of stage.gates) expect(known).toContain(gateId);
     }
   });
 
-  it('distribute the whole construction cost', () => {
-    const total = stages.reduce((sum, stage) => sum + stage.costShare, 0);
-    expect(total).toBeCloseTo(1, 10);
+  it('gives every stage a gate except the lifeline repair job', () => {
+    const ungated = stages.filter((stage) => stage.gates.length === 0).map((stage) => stage.id);
+    expect(ungated).toEqual(['repair']);
   });
 
-  it('distribute the whole contract as progress payments', () => {
-    const total = stages.reduce((sum, stage) => sum + stage.payShare, 0);
-    expect(total).toBeCloseTo(1, 10);
+  it('distributes the whole construction cost within each project type', () => {
+    for (const type of projectTypes) {
+      const total = type.stages
+        .map((id) => stages.find((stage) => stage.id === id)!)
+        .reduce((sum, stage) => sum + stage.costShare * (stage.perFloor ? type.floors : 1) / (stage.perFloor ? type.floors : 1), 0);
+      expect(total, type.id).toBeCloseTo(type.lifeline ? 0 : 1, 10);
+    }
+  });
+
+  it('distributes the whole contract as progress payments within each project type', () => {
+    for (const type of projectTypes) {
+      const total = type.stages
+        .map((id) => stages.find((stage) => stage.id === id)!)
+        .reduce((sum, stage) => sum + stage.payShare, 0);
+      expect(total, type.id).toBeCloseTo(1, 10);
+    }
   });
 
   it('staff every stage with known subcontractors', () => {

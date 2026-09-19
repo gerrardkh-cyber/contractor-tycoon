@@ -43,7 +43,11 @@ describe('pass rate formula', () => {
       riskyPour: true,
       strictInspectorEvent: true,
     });
-    expect(rate).toBeCloseTo(0.85 - 0.1 - 0.2 - 0.1, 10);
+    const strictEvent = data.eventTemplates.find((entry) => entry.id === 'strict_inspector')!;
+    expect(rate).toBeCloseTo(
+      baseOf('lenient') - rules.lowBidPenalty - rules.riskyPourPenalty - strictEvent.passRatePenalty!,
+      10,
+    );
   });
 });
 
@@ -63,7 +67,9 @@ describe('pass rate boundaries', () => {
   });
 
   it('clamps at the floor when every penalty stacks on a strict inspector', () => {
-    const raw = baseOf('strict') - rules.lowBidPenalty - rules.riskyPourPenalty - 0.1;
+    const strictEvent = data.eventTemplates.find((entry) => entry.id === 'strict_inspector')!;
+    const raw =
+      baseOf('strict') - rules.lowBidPenalty - rules.riskyPourPenalty - strictEvent.passRatePenalty!;
     expect(raw).toBeLessThan(rules.minPassRate);
 
     const rate = passRateFrom({

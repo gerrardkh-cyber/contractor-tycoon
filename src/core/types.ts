@@ -65,6 +65,8 @@ export interface Project {
   advanceOutstanding: number;
   punchOpen: number;
   punchTotalGenerated: number;
+  /** Punch work billed to the job, settled against retainage at CO. */
+  punchCostAccrued: number;
   /** Seconds accumulated toward clearing the next punch item. */
   punchClearElapsedSec: number;
   punchClearQueued: number;
@@ -167,6 +169,8 @@ export interface Stats {
   defectsCleared: number;
   lateCompletions: number;
   abandonedProjects: number;
+  /** Seconds spent with no site running and nothing on the board that can be bid. */
+  lockedOutSec: number;
   /** Elapsed seconds at which cash first went negative, or null. */
   bankruptAtSec: number | null;
 }

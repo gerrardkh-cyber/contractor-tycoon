@@ -1,12 +1,30 @@
 [
   {
+    "id": "repair",
+    "category": "building",
+    "pipelineMode": "floorPipeline",
+    "lifeline": true,
+    "floors": 1,
+    "baseContract": 10000,
+    "licenseTier": 1,
+    "stages": [
+      "repair"
+    ]
+  },
+  {
     "id": "house",
     "category": "building",
     "pipelineMode": "floorPipeline",
     "floors": 1,
     "baseContract": 150000,
     "licenseTier": 1,
-    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+    "stages": [
+      "foundation",
+      "structural",
+      "mep",
+      "weatherproof",
+      "final"
+    ]
   },
   {
     "id": "lowrise",
@@ -15,7 +33,13 @@
     "floors": 3,
     "baseContract": 600000,
     "licenseTier": 1,
-    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+    "stages": [
+      "foundation",
+      "structural",
+      "mep",
+      "weatherproof",
+      "final"
+    ]
   },
   {
     "id": "midrise",
@@ -24,6 +48,12 @@
     "floors": 8,
     "baseContract": 2000000,
     "licenseTier": 2,
-    "stages": ["foundation", "structural", "mep", "weatherproof", "final"]
+    "stages": [
+      "foundation",
+      "structural",
+      "mep",
+      "weatherproof",
+      "final"
+    ]
   }
 ]

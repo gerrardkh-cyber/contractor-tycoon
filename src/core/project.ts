@@ -124,6 +124,7 @@ export function minCashToBid(typeId: string, contractBase: number): number {
   const totalCost = contractBase * balance.economy.constructionCostRatio;
   let required = 0;
   for (const stageId of balance.bidding.minCashStages) {
+    if (!type.stages.includes(stageId)) continue;
     const stage = requireStage(stageId);
     required += (totalCost * stage.costShare) / (stage.perFloor ? type.floors : 1);
   }

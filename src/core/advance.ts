@@ -23,7 +23,7 @@ import {
   stageDurationSec,
   stagePay,
 } from './project';
-import { tickBoard } from './rfq';
+import { isLockedOut, syncLifeline, tickBoard } from './rfq';
 import { nextId } from './state';
 import type { Rng } from './rng';
 import type { GameState, Project, Task } from './types';
@@ -57,6 +57,13 @@ function stepOnce(state: GameState, dtSec: number, rng: Rng): void {
   tickBoosts(state, dtSec);
   refreshLicense(state);
 
+  // Sites finish after the board was refreshed, so re-check the lifeline here:
+  // the repair job must be up in the same tick the last site closes.
+  syncLifeline(state, rng);
+
+  // Nothing running and nothing biddable: the lifeline should keep this at zero.
+  if (isLockedOut(state)) state.stats.lockedOutSec += dtSec;
+
   if (state.company.cash < 0 && state.stats.bankruptAtSec === null) {
     state.stats.bankruptAtSec = state.elapsedSec;
   }
@@ -75,7 +82,7 @@ function tickBoosts(state: GameState, dtSec: number): void {
 function tickProject(state: GameState, project: Project, dtSec: number, rng: Rng): void {
   applyChangeOrderIfDue(state, project);
   project.stalled = false;
-  tickPunchClearing(state, project, dtSec);
+  tickPunchClearing(project, dtSec);
 
   for (const task of project.tasks) {
     if (task.status === 'done') continue;
@@ -173,7 +180,11 @@ function payForStage(state: GameState, project: Project, task: Task, rng: Rng): 
   releaseProgressPayment(state, project, gross, rng);
 }
 
-function tickPunchClearing(state: GameState, project: Project, dtSec: number): void {
+/**
+ * Punch work is billed to the job, not paid in cash: it is settled against
+ * retainage at CO. So a site is never held up by a punch item it cannot afford.
+ */
+function tickPunchClearing(project: Project, dtSec: number): void {
   if (project.punchClearQueued <= 0 || project.punchOpen <= 0) return;
 
   const perItemSec = balance.punchList.clearSec;
@@ -185,12 +196,7 @@ function tickPunchClearing(state: GameState, project: Project, dtSec: number): v
     project.punchClearQueued > 0 &&
     project.punchOpen > 0
   ) {
-    if (state.company.cash < cost) {
-      project.stalled = true;
-      return;
-    }
-    state.company.cash -= cost;
-    project.spent += cost;
+    project.punchCostAccrued += cost;
     project.punchClearElapsedSec -= perItemSec;
     project.punchClearQueued -= 1;
     project.punchOpen -= 1;
@@ -198,6 +204,17 @@ function tickPunchClearing(state: GameState, project: Project, dtSec: number): v
 }
 
 function completeProject(state: GameState, project: Project): void {
+  // The punch bill comes out of retainage first; anything over it is paid in cash.
+  const fromRetainage = Math.min(project.punchCostAccrued, project.retainage);
+  project.retainage -= fromRetainage;
+  project.spent += fromRetainage;
+
+  const shortfall = project.punchCostAccrued - fromRetainage;
+  if (shortfall > 0) {
+    state.company.cash -= shortfall;
+    project.spent += shortfall;
+  }
+
   releaseRetainage(state, project);
 
   const late = isLate(state, project);

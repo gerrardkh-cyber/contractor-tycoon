@@ -176,14 +176,17 @@ describe('site slots', () => {
     const rng = seeded(4);
     const state = fundedBoard(rng);
 
+    const [second, third] = balance.sites.slotCosts;
+    expect([second!.cost, third!.cost]).toEqual([60_000, 250_000]);
+
     let result = applyAction(state, { type: 'buySiteSlot' }, rng);
     expect(result.ok).toBe(true);
     expect(result.state.company.siteSlots).toBe(2);
-    expect(result.state.company.cash).toBe(10_000_000 - 150_000);
+    expect(result.state.company.cash).toBe(10_000_000 - second!.cost);
 
     result = applyAction(result.state, { type: 'buySiteSlot' }, rng);
     expect(result.state.company.siteSlots).toBe(3);
-    expect(result.state.company.cash).toBe(10_000_000 - 150_000 - 600_000);
+    expect(result.state.company.cash).toBe(10_000_000 - second!.cost - third!.cost);
 
     result = applyAction(result.state, { type: 'buySiteSlot' }, rng);
     expect(result.ok).toBe(false);

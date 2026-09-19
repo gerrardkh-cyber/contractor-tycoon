@@ -159,7 +159,9 @@ describe('abandoning a site', () => {
 });
 
 describe('bid eligibility floor', () => {
-  it('is the foundation plus one floor of structural', () => {
+  it('covers exactly the stages named in the data', () => {
+    expect(balance.bidding.minCashStages).toEqual(['foundation']);
+
     for (const type of data.projectTypes) {
       const base = type.baseContract;
       const project = {
@@ -168,17 +170,22 @@ describe('bid eligibility floor', () => {
         totalCost: base * balance.economy.constructionCostRatio,
       } as never as Parameters<typeof stageCost>[0];
 
-      expect(minCashToBid(type.id, base)).toBeCloseTo(
-        stageCost(project, 'foundation') + stageCost(project, 'structural'),
-        6,
-      );
+      const expected = balance.bidding.minCashStages
+        .filter((stageId) => type.stages.includes(stageId))
+        .reduce((sum, stageId) => sum + stageCost(project, stageId), 0);
+
+      expect(minCashToBid(type.id, base), type.id).toBeCloseTo(expected, 6);
     }
   });
 
   it('matches the figures recorded in BALANCE.md', () => {
-    expect(minCashToBid('house', 150_000)).toBeCloseTo(63_750, 6);
-    expect(minCashToBid('lowrise', 600_000)).toBeCloseTo(136_000, 6);
-    expect(minCashToBid('midrise', 2_000_000)).toBeCloseTo(329_375, 6);
+    expect(minCashToBid('house', 150_000)).toBeCloseTo(19_125, 6);
+    expect(minCashToBid('lowrise', 600_000)).toBeCloseTo(76_500, 6);
+    expect(minCashToBid('midrise', 2_000_000)).toBeCloseTo(255_000, 6);
+  });
+
+  it('asks nothing of the lifeline repair job', () => {
+    expect(minCashToBid('repair', 10_000)).toBe(0);
   });
 
   it('is published on every RFQ', () => {
@@ -215,11 +222,13 @@ describe('bid eligibility floor', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('keeps a starting company out of lowrise but not house', () => {
+  it('lets a starting company reach house and lowrise but not midrise', () => {
     const state = advance(createInitialState(), 0.25, seeded(23));
     expect(state.company.cash).toBe(80_000);
-    expect(minCashToBid('house', requireProjectType('house').baseContract)).toBeLessThan(80_000);
-    expect(minCashToBid('lowrise', requireProjectType('lowrise').baseContract)).toBeGreaterThan(80_000);
+    for (const id of ['house', 'lowrise']) {
+      expect(minCashToBid(id, requireProjectType(id).baseContract), id).toBeLessThan(80_000);
+    }
+    expect(minCashToBid('midrise', requireProjectType('midrise').baseContract)).toBeGreaterThan(80_000);
   });
 });
 

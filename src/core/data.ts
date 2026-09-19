@@ -55,6 +55,8 @@ export interface GateData {
 
 export interface ProjectTypeData {
   id: string;
+  /** A job the board offers only to keep a broke company alive. */
+  lifeline?: boolean;
   category: string;
   pipelineMode: string;
   floors: number;

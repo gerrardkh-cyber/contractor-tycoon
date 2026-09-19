@@ -71,5 +71,17 @@
       "final"
     ],
     "blockedByRain": false
+  },
+  {
+    "id": "repair",
+    "subs": [
+      "sitework"
+    ],
+    "baseSec": 60,
+    "costShare": 0,
+    "payShare": 1,
+    "perFloor": false,
+    "gates": [],
+    "blockedByRain": false
   }
 ]
