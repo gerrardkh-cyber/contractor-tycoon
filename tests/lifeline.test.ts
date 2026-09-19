@@ -60,7 +60,7 @@ describe('the repair job', () => {
     expect(result.state.projects[0]!.typeId).toBe('repair');
   });
 
-  it('charges no stage cost and pays out the contract', () => {
+  it('charges no stage cost and pays out the whole contract', () => {
     let state = brokeAndIdle(0);
     const repair = state.board.find(isLifeline)!;
     state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(1)).state;
@@ -73,10 +73,42 @@ describe('the repair job', () => {
       expect(state.company.cash).toBeGreaterThanOrEqual(0);
     }
 
-    expect(state.company.completedProjects).toBe(1);
-    // The whole contract less the warranty fee, which every CO pays.
-    const fee = project.contractBase * balance.defect.warrantyFeeRatio;
-    expect(state.company.cash).toBeCloseTo(project.awarded - fee, 6);
+    // Exempt from the warranty fee, so the full contract lands.
+    expect(state.stats.repairCount).toBe(1);
+    expect(state.company.cash).toBeCloseTo(project.awarded, 6);
+  });
+
+  it('is kept out of the licence count, trust and the warranty window', () => {
+    let state = brokeAndIdle(0);
+    const repair = state.board.find(isLifeline)!;
+    const trustBefore = state.company.trust;
+    state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, seeded(1)).state;
+
+    for (let i = 0; i < 400 && state.projects.length > 0; i += 1) state = advance(state, 1, seeded(3));
+
+    expect(state.stats.repairCount).toBe(1);
+    expect(state.company.completedProjects).toBe(0);
+    expect(state.company.trust).toBe(trustBefore);
+    expect(state.warranties.length).toBe(0);
+    expect(state.stats.lateCompletions).toBe(0);
+  });
+
+  it('never unlocks a licence, however many are finished', () => {
+    const rng = seeded(41);
+    let state = brokeAndIdle(0, 41);
+    const required = balance.license.unlocks[0]!.completedProjects;
+
+    for (let i = 0; i < 3000 && state.stats.repairCount <= required; i += 1) {
+      const repair = state.board.find(isLifeline);
+      if (repair && state.projects.length === 0) {
+        state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, rng).state;
+      }
+      state = advance(state, 1, rng);
+    }
+
+    expect(state.stats.repairCount).toBeGreaterThan(required);
+    expect(state.company.completedProjects).toBe(0);
+    expect(state.company.licenseTier).toBe(1);
   });
 
   it('takes about the advertised minute', () => {
@@ -150,7 +182,7 @@ describe('lock-out cannot happen', () => {
     // Back above the entry price for ordinary work, with no dead time on the clock.
     expect(state.company.cash).toBeGreaterThanOrEqual(houseEntry);
     expect(state.stats.lockedOutSec).toBe(0);
-    expect(state.company.completedProjects).toBeGreaterThan(0);
+    expect(state.stats.repairCount).toBeGreaterThan(0);
   });
 
 });

@@ -169,6 +169,8 @@ export interface Stats {
   defectsCleared: number;
   lateCompletions: number;
   abandonedProjects: number;
+  /** Lifeline repair jobs finished. Counted apart from real completions. */
+  repairCount: number;
   /** Seconds spent with no site running and nothing on the board that can be bid. */
   lockedOutSec: number;
   /** Elapsed seconds at which cash first went negative, or null. */

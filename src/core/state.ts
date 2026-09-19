@@ -64,6 +64,7 @@ export function createInitialState(): GameState {
       defectsCleared: 0,
       lateCompletions: 0,
       abandonedProjects: 0,
+      repairCount: 0,
       lockedOutSec: 0,
       bankruptAtSec: null,
     },

@@ -217,34 +217,40 @@ function completeProject(state: GameState, project: Project): void {
 
   releaseRetainage(state, project);
 
-  const late = isLate(state, project);
-  adjustTrust(state, late ? balance.trust.coLate : balance.trust.coOnTime);
-  if (late) state.stats.lateCompletions += 1;
+  // A lifeline repair job is not a real completion: it carries no warranty, is
+  // kept out of the licence count and settles no trust. It only gets counted.
+  if (requireProjectType(project.typeId).lifeline) {
+    state.stats.repairCount += 1;
+  } else {
+    const late = isLate(state, project);
+    adjustTrust(state, late ? balance.trust.coLate : balance.trust.coOnTime);
+    if (late) state.stats.lateCompletions += 1;
 
-  const penaltyUnits = Math.floor(project.punchOpen / balance.trust.openMinorsPerPenalty);
-  if (penaltyUnits > 0) adjustTrust(state, penaltyUnits * balance.trust.openMinorPenalty);
+    const penaltyUnits = Math.floor(project.punchOpen / balance.trust.openMinorsPerPenalty);
+    if (penaltyUnits > 0) adjustTrust(state, penaltyUnits * balance.trust.openMinorPenalty);
 
-  const fee = project.contractBase * balance.defect.warrantyFeeRatio;
-  state.company.cash -= fee;
-  project.spent += fee;
+    const fee = project.contractBase * balance.defect.warrantyFeeRatio;
+    state.company.cash -= fee;
+    project.spent += fee;
 
-  state.company.completedProjects += 1;
+    state.company.completedProjects += 1;
 
-  const { baseChance, perMinorChance, lowBidChance, maxChance, windowSec } = balance.defect;
-  const chance = Math.min(
-    maxChance,
-    baseChance +
-      project.punchTotalGenerated * perMinorChance +
-      (project.bidTier === 'low' ? lowBidChance : 0),
-  );
+    const { baseChance, perMinorChance, lowBidChance, maxChance, windowSec } = balance.defect;
+    const chance = Math.min(
+      maxChance,
+      baseChance +
+        project.punchTotalGenerated * perMinorChance +
+        (project.bidTier === 'low' ? lowBidChance : 0),
+    );
 
-  state.warranties.push({
-    id: nextId(state, 'wty'),
-    projectId: project.id,
-    contractBase: project.contractBase,
-    defectChance: chance,
-    remainingSec: windowSec,
-  });
+    state.warranties.push({
+      id: nextId(state, 'wty'),
+      projectId: project.id,
+      contractBase: project.contractBase,
+      defectChance: chance,
+      remainingSec: windowSec,
+    });
+  }
 
   state.projects = state.projects.filter((other) => other.id !== project.id);
   state.pendingDecisions = state.pendingDecisions.filter(
