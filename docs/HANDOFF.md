@@ -4,6 +4,129 @@
 
 ---
 
+## 발주서 004 — 비주얼·모션·사운드 (원문: `docs/orders/004_visuals.md`)
+
+### 상태: **구현 완료. 광희님 플레이테스트 대기.**
+
+게임 규칙과 BALANCE 숫자는 한 글자도 건드리지 않았습니다.
+`src/core`·`src/data`·`src/save`는 **수정 없음**(발주서 §7). 바뀐 것은 `src/ui`와 문서뿐입니다.
+
+### 파일
+
+| 구분 | 파일 |
+|---|---|
+| 신규 | `motion.ts` (모션 예산·숫자 트윈), `icons.ts` (SVG 아이콘), `sound.ts` (6종 큐), `title.ts` (타이틀·스켈레톤), `assets.d.ts`, `sounds/*.ogg` 6개 |
+| 전면 재작성 | `theme.ts`, `building.ts` (Canvas → **인라인 SVG**), `style.ts`, `site.ts`, `board.ts`, `company.ts`, `topbar.ts`, `app.ts`, `dom.ts` |
+| 부분 수정 | `log.ts`, `overlays.ts`, `strings.en.ts` |
+| 문서 | `docs/ASSETS.md` (신규), `docs/orders/004_visuals.md` |
+| 테스트 | `tests/ui-tokens.test.ts` (신규) |
+
+### 가장 큰 구조 변경 — 증분 렌더링
+
+003의 `render()`는 0.1초마다 DOM을 전부 파괴하고 다시 만들었습니다.
+그 구조에서는 발주서 004가 요구하는 **숫자 트윈·슬라이드 인/아웃·층 바운스·크레인 회전**이
+원리적으로 불가능합니다(매 프레임 애니메이션이 처음부터 다시 시작).
+
+그래서 각 패널을 **생성 1회 + 갱신 N회** 컨트롤러로 바꿨습니다.
+
+| 패널 | 생성 함수 | 키 |
+|---|---|---|
+| 상단바 | `createTopBar` | — (트윈 4개 보유) |
+| 현장 카드 | `createSiteCard` | `project.id` |
+| 입찰 게시판 | `createBoard` → `createRfqCard` | `rfq.id` |
+| 회사 | `createCompanyPanel` | — |
+| 활동 로그 | `createLog` | 마지막 이벤트 id |
+
+`app.ts`가 `Map<id, 컨트롤러>`로 살아있는 카드를 추적합니다.
+사라진 RFQ는 `is-leaving`을 붙여 슬라이드 아웃 후 제거하고, 새 RFQ는 `is-entering`으로 들어옵니다.
+
+### 발주서 항목별 결과
+
+| § | 요구 | 결과 |
+|---|---|---|
+| 1 | 인라인 SVG + CSS, 도트 아님 | 건물·크레인·아이콘·파비콘 전부 SVG. **이미지 파일 0** |
+| 1 | 콘크리트 회색 / 안전모 노랑 유일 강조 / 청사진 파랑 수치 | `theme.color` 재설계. 노랑은 `accent` 하나뿐 |
+| 1 | 색·px 리터럴 theme.ts에만 | `tests/ui-tokens.test.ts`가 hex·rgb·px를 **테스트로 차단** |
+| 1 | 시스템 폰트, 웹폰트 금지 | `font.stack`에서 `'Inter'` 제거. 다운로드 0 |
+| 2 | 단면도 + 지면선·기초·층·지붕 | `building.ts` |
+| 2 | 타워크레인, 지브 20초 1회전, 훅 흔들림 | `craneTurnMs: 20000`. 측면도라 회전을 `scaleX` 주기로 표현 |
+| 2 | 골조 중 자재 들어올림, 정지 시 멈춤 | `.is-working` / `.is-idle` 토글 |
+| 2 | 층 상태 5종 | `is-waiting` / `structure` / `structureGate` / `services` / `servicesGate` / `done` |
+| 2 | 층 완성 200ms 슬라이드 + 바운스 | `floorRiseMs: 200`, `easing.bounce` |
+| 2 | 기초·외장·최종 위치별 시각화 | 하단 기초 / 외곽 envelope / 상단 지붕 |
+| 2 | 펀치 주황 점 최대 10 + "+n" | `punchMax: 10`, 넘으면 `+n` 텍스트 |
+| 3 | 강우 빗줄기·채도 저하·크레인 정지 | `.bld-rain`, `#app.is-wet{filter:saturate(.55)}` |
+| 3 | Pour anyway 주황 경고색 | `.btn.warn` |
+| 3 | 검사 통과 초록 체크 300ms 팝 | `markPass()` → `badge-pop` |
+| 3 | 검사 실패 shake 400ms + 빨강 플래시 + 토스트 | `.is-failed` → `shake` + `flash` |
+| 3 | Minor 주황 점이 톡 붙음 | `.punch-dot.is-new` → `punch-pop` |
+| 3 | 기성 입금 800ms 카운트업 + "+$X" 떠오름 | `NumberTween(800)` + `.float-money` |
+| 3 | 자금 부족 빨강 느린 점멸 | `.site-card.is-starved` |
+| 3 | 기한 20% 주황, 초과 빨강 점멸 | `deadlineWarnRatio: 0.2`, `.is-overdue` |
+| 3 | 숫자 트윈, 즉시 점프 금지 | 현금·부채·순자산·신뢰도 4종 |
+| 3 | reduced-motion 존중 + motionEnabled 일괄 차단 | `html.no-motion` 하나로 전부 정지 |
+| 4 | 청사진 카드, 모노스페이스 수치 | `.rfq` 격자 배경, `font.mono` |
+| 4 | 검사관 아이콘+색 / 발주처 아이콘 | 클립보드 ✓−✗, 초록/회색/빨강 |
+| 4 | 견적 3버튼 확률 막대 + 마진 색 | `.tier` 안 `bar` + good/bad |
+| 4 | 새 RFQ 슬라이드 인, 거절·낙찰 슬라이드 아웃 | `is-entering` / `is-leaving` |
+| 4 | 협력업체 5종 아이콘, 레벨 게이지 | 안전모·철골·번개·배관·소화기 + `gauge` |
+| 5 | CC0 6종, 500KB 이하 | Kenney Interface Sounds, **53KB** |
+| 5 | 출처·라이선스 기록 | `docs/ASSETS.md` |
+| 5 | 기본 음소거, 우측 상단 토글, localStorage | `soundDefaultOn: false` |
+| 6 | 타이틀 + Start, 저장 있으면 Continue | `title.ts` |
+| 6 | 첫 로딩 스켈레톤, 흰 화면 금지 | `createSkeleton()` |
+| 6 | 파비콘 코드 생성 | `faviconDataUrl()` → data URL |
+| 7 | core·data·save 수정 금지 | **0건** |
+| 7 | transform·opacity 위주 | 키프레임 전부 transform/opacity. 막대는 `scaleX` |
+| 7 | 프레임 드랍 시 자동 감축 | `noteFrame()` — 24ms 초과 45프레임 → 감축, 120프레임 회복 |
+| 7 | 모바일 390px, 터치 44px | 가로 스크롤 0, 44px 미만 버튼 **0개** |
+
+### 검토
+
+`reviewer` 서브에이전트 검토 **통과 — 위반 0건**. 확인된 항목:
+
+- `src/core`·`src/data`·`src/save` diff **0줄** (발주서 §7)
+- `theme.ts` 외 색·px 리터럴 0 (전부 `${theme 값}px` 템플릿)
+- UI가 규칙을 계산하는 곳 없음 — 확률·마진·통과율 전부 core 호출
+- 키프레임 전수 조사: `transform`/`opacity`(+`filter`/`box-shadow`)만. 레이아웃 유발 속성 0
+- 아이콘 매핑이 `src/core/data.ts`의 id와 정확히 일치 (없는 성향·타입을 만들지 않음)
+- 코드·게임 문자열에 실제 회사명·제품명 0 (Kenney는 `docs/ASSETS.md`의 CC0 출처 기록뿐)
+- `architecture.test.ts`의 core 순수성 가드 3종 그대로 생존·통과
+
+### 테스트·빌드
+
+- **182개 전부 통과** (176 + `ui-tokens` 6개)
+- `tsc --noEmit` 통과
+- 빌드 **168KB** (JS 97KB + 사운드 53KB). 목표 20MB
+- 외부 CDN 0. 오프라인 실행 가능
+
+### §8 산출물 — `docs/screenshots/`
+
+앱 안의 미리보기 패널은 숨겨져 있으면 `requestAnimationFrame`이 멈춰 게임이 스크린샷을 찍을 때만
+1초씩 진행합니다. 그래서 확률 이벤트(비: 60초마다 15%)를 잡을 수 없었습니다.
+대신 **시스템 Chrome을 헤드리스로 띄워 게임을 실제 속도로 돌리고**, 조건이 성립한 순간에 캡처했습니다.
+전부 연출을 강제한 것이 아니라 **실제 플레이 중 자연 발생한 장면**입니다.
+
+| 파일 | 장면 | 확인된 것 |
+|---|---|---|
+| `1-title.png` | 타이틀 | 게임명, Start, 크레인 실루엣 |
+| `2-framing-crane.png` | 골조 진행 중 | 크레인이 자재를 들고 회전, 철골이 왼쪽부터 차오름, 초록 통과 토스트 |
+| `3-rain-pour-anyway.png` | 강우 | 빗줄기, 화면 전체 채도 저하, 크레인 정지, 주황 `Pour anyway (-20% inspection)` |
+| `4-inspection-failed.png` | 검사 실패 | 빨간 토스트 + 결함명 "Column splice is missing its cover plate." |
+| `5-mobile-390.png` | 모바일 390px | 1열, 가로 스크롤 0, 터치 타겟 44px |
+| `handover-loop.gif` | 10초 흐름 | 층 작업 → 검사 → 기성 입금 |
+
+캡처 스크립트는 세션 스크래치패드에 있고 저장소에 넣지 않았습니다(프로젝트 의존성 아님).
+
+### 남은 것 / 다음 발주서 후보
+
+- 광희님 플레이테스트 판정
+- `prestige`(회사 매각) 버튼은 여전히 비활성 placeholder입니다.
+- 사운드 6종은 파일명으로 골랐습니다(들어보고 고른 것이 아님). 어울리지 않으면
+  `src/ui/sound.ts`의 매핑만 바꾸면 되고, 원본 팩에는 대체 후보가 많습니다.
+
+---
+
 ## 발주서 003 — 빌딩 v1 화면 (원문: `docs/orders/003_ui.md`)
 
 ### 상태: **구현 완료. 광희님 플레이테스트 대기.**

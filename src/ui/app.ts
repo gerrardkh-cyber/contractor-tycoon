@@ -1,6 +1,11 @@
-// The application shell: owns the state, runs the loop, and re-renders.
+// The application shell: owns the state, runs the loop, and keeps the screen
+// in step with it.
 //
 // src/ui calls src/core and formats what comes back. It computes no rules.
+//
+// Panels are built once and patched every frame. That is what lets a floor
+// rise into place, a payment lift off its card and the crane keep turning:
+// nothing on screen is thrown away between frames.
 
 import {
   advance,
@@ -13,13 +18,17 @@ import {
   type Rng,
 } from '../core';
 import { clearSave, createAutosave, load, save, type OfflineSummary } from '../save';
-import { clear, el } from './dom';
+import { clear, el, toggleClass } from './dom';
+import { faviconDataUrl } from './icons';
+import { initMotion, noteFrame } from './motion';
+import { initSound, play } from './sound';
 import { injectStyles } from './style';
-import { renderBoard, type BidResult } from './board';
-import { renderCompany } from './company';
-import { renderLog } from './log';
-import { renderEmptyLot, renderSiteCard } from './site';
-import { renderTopBar } from './topbar';
+import { createBoard, type BidResult } from './board';
+import { createCompanyPanel } from './company';
+import { createLog } from './log';
+import { createSiteCard, renderEmptyLot, type SiteCard } from './site';
+import { createTopBar } from './topbar';
+import { createSkeleton, createTitleScreen } from './title';
 import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
 import { strings } from './strings.en';
 import { theme } from './theme';
@@ -30,17 +39,43 @@ const HINT_KEY = 'contractor-tycoon:hint';
 
 export function mount(root: HTMLElement): void {
   injectStyles();
+  initMotion();
+  initSound();
   document.title = strings.app.title;
-  root.append(el('div', { class: 'loading' }, [el('div', { class: 'spinner' }), strings.app.loading]));
+  applyFavicon();
 
-  // One frame of loading, then boot: keeps the indicator visible on slow devices.
-  requestAnimationFrame(() => requestAnimationFrame(() => boot(root)));
+  // Shapes, not a blank page, while the save is read.
+  root.append(createSkeleton());
+
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const seed = Math.floor(Math.random() * 0xffffffff);
+      const loaded = load(Date.now(), seed);
+
+      // The game is built behind the title, so the screen the player is about
+      // to see is already there when the title fades off it. The clock does
+      // not start until they ask for it.
+      const game = boot(root, loaded, seed);
+      const title = createTitleScreen(!loaded.fresh, () => title.dismiss(game.start));
+      document.body.append(title.node);
+    }),
+  );
 }
 
-function boot(root: HTMLElement): void {
-  const seed = Math.floor(Math.random() * 0xffffffff);
-  const loaded = load(Date.now(), seed);
+function applyFavicon(): void {
+  const link = el('link', { rel: 'icon', type: 'image/svg+xml' });
+  link.setAttribute('href', faviconDataUrl(theme.color.panel, theme.color.accent));
+  document.head.append(link);
+}
 
+type Loaded = ReturnType<typeof load>;
+
+interface Game {
+  /** Starts the clock. Called once the title screen has gone. */
+  start(): void;
+}
+
+function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   let state: GameState = loaded.state;
   let rng: Rng = loaded.rng;
   let seenEvents = state.log.length > 0 ? (state.log[state.log.length - 1] as GameEvent).id : null;
@@ -49,22 +84,7 @@ function boot(root: HTMLElement): void {
   let overlay: HTMLElement | null = null;
 
   clear(root);
-  const topbar = el('div', { class: 'topbar' });
-  const sites = el('div', { class: 'sites' });
-  const board = el('div', { class: 'panel' });
-  const company = el('div', { class: 'panel' });
-  const logPanel = el('div', { class: 'panel' });
-
-  root.append(
-    topbar,
-    el('div', { class: 'columns' }, [
-      el('div', {}, [sites]),
-      el('div', {}, [board, company]),
-    ]),
-    logPanel,
-  );
   const toasts = new Toasts(document.body);
-
   const autosave = createAutosave(() => ({ state, rng }));
 
   const ctx: Ctx = {
@@ -111,6 +131,24 @@ function boot(root: HTMLElement): void {
     },
   };
 
+  const topbar = createTopBar(ctx);
+  const sites = el('div', { class: 'sites' });
+  const board = createBoard();
+  const company = createCompanyPanel(ctx);
+  const logPanel = createLog();
+
+  root.append(
+    topbar.node,
+    el('div', { class: 'columns' }, [
+      el('div', {}, [sites]),
+      el('div', {}, [board.node, company.node]),
+    ]),
+    logPanel.node,
+  );
+
+  /** One card per running site, kept across frames and keyed by project id. */
+  const siteCards = new Map<string, SiteCard>();
+
   function setHint(step: number): void {
     hintStep = step;
     try {
@@ -150,7 +188,11 @@ function boot(root: HTMLElement): void {
     ];
   }
 
-  /** Turns new engine events into toasts. The log panel shows them all. */
+  /**
+   * Turns new engine events into what the player sees and hears: a badge on
+   * the part that passed, a shake on the one that failed, money lifting off a
+   * card, and one cue each. The log panel keeps them all.
+   */
   function drainEvents(): void {
     if (state.log.length === 0) return;
     const index = seenEvents === null ? -1 : state.log.findIndex((e) => e.id === seenEvents);
@@ -166,43 +208,103 @@ function boot(root: HTMLElement): void {
     if (fresh.length === 0) return;
     seenEvents = (state.log[state.log.length - 1] as GameEvent).id;
 
-    for (const event of fresh) {
-      if (event.kind !== 'inspection') continue;
-      const gate = (strings.gate as Record<string, string>)[event.gateId] ?? event.gateId;
-      if (event.passed) {
-        toasts.show({
-          text: event.minors > 0
-            ? strings.toast.passedMinors(gate, event.minors)
-            : strings.toast.passed(gate),
-          tone: 'good',
-        });
-        if (hintStep === 1) setHint(2);
-      } else {
+    for (const event of fresh) handleEvent(event);
+  }
+
+  function handleEvent(event: GameEvent): void {
+    switch (event.kind) {
+      case 'awarded':
+        play('awarded');
+        return;
+
+      case 'payment': {
+        if (event.delayed) return;
+        siteCards.get(event.projectId)?.payment(event.amount);
+        play('payment');
+        return;
+      }
+
+      case 'completed':
+        play('handover');
+        return;
+
+      case 'inspection': {
+        const gate = (strings.gate as Record<string, string>)[event.gateId] ?? event.gateId;
+        const card = siteCards.get(event.projectId);
+        if (event.passed) {
+          card?.pass(event.gateId);
+          play('pass');
+          toasts.show({
+            text:
+              event.minors > 0
+                ? strings.toast.passedMinors(gate, event.minors)
+                : strings.toast.passed(gate),
+            tone: 'good',
+          });
+          if (hintStep === 1) setHint(2);
+          return;
+        }
+        card?.fail();
+        play('fail');
         const detail = defectLine(event.gateId, state);
         toasts.show({
           text: strings.toast.failed(gate),
           ...(detail === undefined ? {} : { detail }),
           tone: 'bad',
         });
+        return;
       }
+
+      default:
+        return;
     }
   }
 
   function render(): void {
-    renderTopBar(topbar, ctx);
-
-    clear(sites);
-    for (const project of state.projects) sites.append(renderSiteCard(ctx, project));
-    const lots = state.company.siteSlots - state.projects.filter((p) => !isRepair(p.typeId)).length;
-    for (let i = 0; i < lots; i += 1) sites.append(renderEmptyLot(ctx));
-
     const now = performance.now();
-    results = results.filter((entry) => entry.until > now);
-    const hint = hintStep >= 0 && hintStep < strings.hints.length ? strings.hints[hintStep] ?? null : null;
-    renderBoard(board, ctx, results, hint);
+    topbar.update(ctx, now);
+    syncSites();
 
-    renderCompany(company, ctx);
-    renderLog(logPanel, ctx);
+    results = results.filter((entry) => entry.until > now);
+    const hint =
+      hintStep >= 0 && hintStep < strings.hints.length ? strings.hints[hintStep] ?? null : null;
+    board.update(ctx, results, hint);
+
+    company.update(ctx);
+    logPanel.update(ctx);
+
+    // Rain drains the colour from the whole screen while it falls.
+    toggleClass(root, 'is-wet', state.weather.raining);
+  }
+
+  /** Adds a card for a new site, drops the card for one that has gone. */
+  function syncSites(): void {
+    const live = new Set(state.projects.map((project) => project.id));
+    for (const [id, card] of siteCards) {
+      if (live.has(id)) continue;
+      card.dispose();
+      card.node.remove();
+      siteCards.delete(id);
+    }
+
+    for (const project of state.projects) {
+      let card = siteCards.get(project.id);
+      if (!card) {
+        card = createSiteCard(ctx, project);
+        siteCards.set(project.id, card);
+        sites.append(card.node);
+      }
+      card.update(ctx, project);
+    }
+
+    // Empty lots fill whatever the running sites do not.
+    const running = state.projects.filter((p) => !isRepair(p.typeId)).length;
+    const wanted = Math.max(0, state.company.siteSlots - running);
+    const lots = sites.querySelectorAll('.empty-lot');
+    if (lots.length !== wanted) {
+      for (const lot of lots) lot.remove();
+      for (let i = 0; i < wanted; i += 1) sites.append(renderEmptyLot(ctx));
+    }
   }
 
   function isRepair(typeId: string): boolean {
@@ -215,11 +317,14 @@ function boot(root: HTMLElement): void {
 
   function frame(now: number): void {
     requestAnimationFrame(frame);
+    const frameMs = now - last;
     if (document.hidden) {
       last = now;
       return;
     }
-    accumulator += Math.min((now - last) / 1000, 1);
+    // What the last frame cost decides whether decoration is affordable.
+    noteFrame(frameMs);
+    accumulator += Math.min(frameMs / 1000, 1);
     last = now;
 
     let stepped = false;
@@ -230,9 +335,10 @@ function boot(root: HTMLElement): void {
     }
     if (!stepped) return;
 
+    // Paint first, so a card exists for the events about to be announced.
+    render();
     drainEvents();
     autosave.tick(STEP_SEC, state, rng, Date.now());
-    render();
   }
 
   document.addEventListener('visibilitychange', () => {
@@ -259,14 +365,20 @@ function boot(root: HTMLElement): void {
     showOverlay(offlineDialog(sec, capped, summary, closeOverlay));
   }
 
-  if (!loaded.fresh && loaded.offlineSec >= theme.motion.offlineModalMinSec) {
-    showWelcomeBack(loaded.offlineSec, loaded.offlineCapped, loaded.summary);
-  }
-
   // One step before the first paint, so the board is already full when the
   // player first looks at it rather than filling in on the next frame.
   state = advance(state, STEP_SEC, rng);
   save(state, rng, Date.now());
   render();
-  requestAnimationFrame(frame);
+
+  function start(): void {
+    if (!loaded.fresh && loaded.offlineSec >= theme.motion.offlineModalMinSec) {
+      showWelcomeBack(loaded.offlineSec, loaded.offlineCapped, loaded.summary);
+    }
+    last = performance.now();
+    accumulator = 0;
+    requestAnimationFrame(frame);
+  }
+
+  return { start };
 }

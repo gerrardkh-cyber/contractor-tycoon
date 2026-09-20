@@ -54,11 +54,34 @@ function describe(event: GameEvent): { text: string; tone: string } {
   }
 }
 
-export function renderLog(host: HTMLElement, ctx: Ctx): void {
-  clear(host);
+export interface LogPanel {
+  node: HTMLElement;
+  update(ctx: Ctx): void;
+}
+
+/** Rebuilt only when the tail of the log actually moved. */
+export function createLog(): LogPanel {
+  const list = el('div', { class: 'log-list' });
+  const node = el('div', { class: 'panel' }, [
+    el('details', { open: true }, [el('summary', { text: strings.log.title }), list]),
+  ]);
+  let lastId = '';
+
+  function update(ctx: Ctx): void {
+    const tail = ctx.state.log[ctx.state.log.length - 1];
+    const id = tail?.id ?? '';
+    if (id === lastId) return;
+    lastId = id;
+    fill(list, ctx);
+  }
+
+  return { node, update };
+}
+
+function fill(list: HTMLElement, ctx: Ctx): void {
+  clear(list);
   const recent = ctx.state.log.slice(-VISIBLE).reverse();
 
-  const list = el('div', { class: 'log-list' });
   if (recent.length === 0) {
     list.append(el('div', { class: 'log-line', text: strings.log.empty }));
   }
@@ -72,9 +95,4 @@ export function renderLog(host: HTMLElement, ctx: Ctx): void {
     );
   }
 
-  const details = el('details', { open: true }, [
-    el('summary', { text: strings.log.title }),
-    list,
-  ]);
-  host.append(details);
 }

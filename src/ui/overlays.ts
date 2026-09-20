@@ -3,6 +3,7 @@
 import { data, type GameState, type Project } from '../core';
 import { button, el } from './dom';
 import { duration, money, moneySigned } from './format';
+import { prefersReducedMotion } from './motion';
 import { strings } from './strings.en';
 import { theme } from './theme';
 import type { ToastRequest } from './context';
@@ -99,7 +100,8 @@ export function settingsDialog(
   return modal([
     el('div', { class: 'modal-title', text: strings.settings.title }),
     el('div', { class: 'modal-body' }, [
-      el('span', { text: strings.settings.noSound }),
+      el('span', { text: strings.settings.soundHint }),
+      prefersReducedMotion() ? el('span', { text: strings.settings.motionReduced }) : null,
     ]),
     resetButton,
     el('div', { class: 'btn-row' }, [

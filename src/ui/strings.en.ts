@@ -32,6 +32,7 @@ export const strings = {
     progress: 'Progress',
     abandon: 'Abandon',
     stalledFunds: (amount: string) => `Waiting on funds — needs ${amount}`,
+    stalledFundsPlain: 'Waiting on funds — needs',
     stalledRain: (seconds: string) => `Rained off — ${seconds} left`,
     awaitingInspection: 'Awaiting inspection',
     punchOpen: (n: number) => (n === 1 ? '1 open punch item' : `${n} open punch items`),
@@ -215,7 +216,12 @@ export const strings = {
     resetDo: 'Delete',
     cancel: 'Cancel',
     close: 'Close',
-    noSound: 'No sound in this version.',
+    sound: 'Sound',
+    soundOn: 'Sound on',
+    soundOff: 'Sound off',
+    soundHint: 'Six short cues. Off by default.',
+    motion: 'Motion',
+    motionReduced: 'Reduced motion is on: animation is held back.',
   },
 
   ads: {
@@ -229,6 +235,16 @@ export const strings = {
     'Every floor is inspected. Fail one and the crew reworks it.',
     'You are paid at each inspection that passes, less retainage.',
   ],
+
+  title: {
+    nameFirst: 'Contractor ',
+    nameSecond: 'Tycoon',
+    tagline: 'Win the work. Pass the inspection. Get paid.',
+    start: 'Start building',
+    continue: 'Continue',
+    savedNote: 'Your site is where you left it.',
+    newNote: 'One lot, one crane, and a tender to win.',
+  },
 
   units: {
     seconds: (n: number) => `${n}s`,
