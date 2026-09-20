@@ -43,6 +43,8 @@ export {
 } from './project';
 
 export { passRateFor, passRateFrom, punchItemCost, type PassRateInputs } from './inspection';
+export { estimateMargin, type MarginEstimate } from './economics';
+export { eventsSince } from './log';
 export { breakdownFor, type PaymentBreakdown } from './payments';
 export {
   canAffordBid,

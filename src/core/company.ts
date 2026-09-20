@@ -1,6 +1,7 @@
 // Company-layer helpers: subcontractor effects, trust, license, net worth.
 
 import { balance, subIds } from './data';
+import { pushEvent } from './log';
 import type { GameState, SubId } from './types';
 
 /** Time multiplier for one subcontractor: base^(level - 1). */
@@ -84,6 +85,7 @@ export function refreshLicense(state: GameState): void {
       netWorth(state) >= unlock.netWorth
     ) {
       state.company.licenseTier = unlock.tier;
+      pushEvent(state, { kind: 'licenseUp', tier: unlock.tier });
     }
   }
 }

@@ -32,13 +32,15 @@ describe('the repair job', () => {
     expect(state.board.some(isLifeline)).toBe(false);
   });
 
-  it('is posted at the start of a game whose board is all out of reach', () => {
-    // Three ordinary slots can all come up lowrise, which a starting company
-    // cannot fund; the repair job fills the gap until the board rotates.
-    const state = advance(createInitialState(), 0.25, seeded(5));
-    const affordable = state.board.filter((rfq) => !isLifeline(rfq) && canAffordBid(state, rfq));
-    expect(affordable.length).toBe(0);
-    expect(state.board.some(isLifeline)).toBe(true);
+  it('is never needed at the start of a new game', () => {
+    // The scripted opening RFQ is a house the starting capital can always fund,
+    // so a new game never opens on the repair job.
+    for (const seed of [1, 5, 9, 13, 21]) {
+      const state = advance(createInitialState(), 0.25, seeded(seed));
+      const affordable = state.board.filter((rfq) => !isLifeline(rfq) && canAffordBid(state, rfq));
+      expect(affordable.length, `seed ${seed}`).toBeGreaterThan(0);
+      expect(state.board.some(isLifeline), `seed ${seed}`).toBe(false);
+    }
   });
 
   it('appears once nothing on the board can be bid and no site is running', () => {

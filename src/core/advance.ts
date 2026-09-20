@@ -24,6 +24,7 @@ import {
   stagePay,
 } from './project';
 import { isLockedOut, syncLifeline, tickBoard } from './rfq';
+import { pushEvent } from './log';
 import { nextId } from './state';
 import type { Rng } from './rng';
 import type { GameState, Project, Task } from './types';
@@ -222,9 +223,18 @@ function completeProject(state: GameState, project: Project): void {
 
   // A lifeline repair job is not a real completion: it carries no warranty, is
   // kept out of the licence count and settles no trust. It only gets counted.
+  const payoutSoFar = project.paidOut;
+
   if (requireProjectType(project.typeId).lifeline) {
     state.stats.repairCount += 1;
     state.lifelineCooldownRemainingSec = balance.lifeline.cooldownSec;
+    pushEvent(state, {
+      kind: 'completed',
+      projectId: project.id,
+      typeId: project.typeId,
+      late: false,
+      amount: payoutSoFar,
+    });
   } else {
     const late = isLate(state, project);
     adjustTrust(state, late ? balance.trust.coLate : balance.trust.coOnTime);
@@ -254,6 +264,14 @@ function completeProject(state: GameState, project: Project): void {
       defectChance: chance,
       remainingSec: windowSec,
     });
+
+    pushEvent(state, {
+      kind: 'completed',
+      projectId: project.id,
+      typeId: project.typeId,
+      late,
+      amount: payoutSoFar,
+    });
   }
 
   state.projects = state.projects.filter((other) => other.id !== project.id);
@@ -272,14 +290,22 @@ function tickWarranties(state: GameState, dtSec: number, rng: Rng): void {
       survivors.push(warranty);
       continue;
     }
-    if (rng.next() < warranty.defectChance) {
-      chargeCash(state, warranty.contractBase * balance.defect.costRatio);
+    const cost = warranty.contractBase * balance.defect.costRatio;
+    const occurred = rng.next() < warranty.defectChance;
+    if (occurred) {
+      chargeCash(state, cost);
       adjustTrust(state, balance.trust.defectOccurred);
       state.stats.defectsOccurred += 1;
     } else {
       adjustTrust(state, balance.trust.defectClear);
       state.stats.defectsCleared += 1;
     }
+    pushEvent(state, {
+      kind: 'defect',
+      typeId: 'warranty',
+      occurred,
+      amount: occurred ? cost : 0,
+    });
   }
   state.warranties = survivors;
 }

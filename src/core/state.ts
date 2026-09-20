@@ -1,8 +1,15 @@
 // Initial state construction and id generation.
 
-import { balance, eventTemplates } from './data';
+import {
+  balance,
+  eventTemplates,
+  requireClientTrait,
+  requireInspector,
+  requireProjectType,
+} from './data';
+import { deadlineSecFor, minCashToBid } from './project';
 import { initialSubLevels } from './company';
-import type { GameState } from './types';
+import type { ClientTraitId, GameState, InspectorId, Rfq } from './types';
 
 const eventIntervals: Record<string, number> = Object.fromEntries(
   eventTemplates
@@ -22,6 +29,34 @@ export function nextId(state: GameState, prefix: string): string {
 }
 
 export function createInitialState(): GameState {
+  const state = blankState();
+  // The opening RFQ is scripted: a small, forgiving, guaranteed job, so the
+  // first thing a new player sees is one button that starts a building.
+  state.board.push(openingRfq(state));
+  return state;
+}
+
+function openingRfq(state: GameState): Rfq {
+  const config = balance.bidding.firstRfq;
+  const type = requireProjectType(config.typeId);
+  const inspector = requireInspector(config.inspector as InspectorId);
+  const trait = requireClientTrait(config.clientTrait as ClientTraitId);
+
+  return {
+    id: nextId(state, 'rfq'),
+    typeId: type.id,
+    contractBase: type.baseContract * inspector.contractMultiplier,
+    clientTrait: trait.id,
+    inspector: inspector.id,
+    deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1),
+    advanceAvailable: state.company.trust >= balance.economy.advanceTrustRequired,
+    minCash: minCashToBid(type.id),
+    directAward: true,
+    postedAtSec: 0,
+  };
+}
+
+function blankState(): GameState {
   return {
     elapsedSec: 0,
     company: {
@@ -43,6 +78,7 @@ export function createInitialState(): GameState {
     abandoned: [],
     pendingPayments: [],
     pendingDecisions: [],
+    log: [],
     weather: {
       raining: false,
       remainingSec: 0,

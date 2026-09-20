@@ -7,10 +7,18 @@
 //
 // Storage is injected so the module is testable outside a browser.
 
-import { advance, createInitialState, createRng, data, type GameState, type Rng } from '../core';
+import {
+  advance,
+  createInitialState,
+  createRng,
+  data,
+  netWorth,
+  type GameState,
+  type Rng,
+} from '../core';
 
 export const SAVE_KEY = 'contractor-tycoon:save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -25,6 +33,16 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
+/** What happened while the tab was away, for the welcome-back screen. */
+export interface OfflineSummary {
+  completed: number;
+  repairs: number;
+  inspectionsPassed: number;
+  inspectionsFailed: number;
+  cashDelta: number;
+  netWorthDelta: number;
+}
+
 export interface LoadResult {
   state: GameState;
   rng: Rng;
@@ -34,6 +52,7 @@ export interface LoadResult {
   offlineCapped: boolean;
   /** True when no usable save was found and a new game was started. */
   fresh: boolean;
+  summary: OfflineSummary;
 }
 
 export function defaultStorage(): StorageLike | null {
@@ -85,11 +104,41 @@ export function applyOffline(saveData: SaveData, nowMs: number): LoadResult {
   const rng = createRng(0);
   rng.setState(saveData.rngState);
 
+  const before = saveData.state;
   const { sec, capped } = offlineSecondsFor(saveData.savedAtMs, nowMs);
-  const state = sec > 0 ? advance(saveData.state, sec, rng) : saveData.state;
+  const state = sec > 0 ? advance(before, sec, rng) : before;
 
-  return { state, rng, offlineSec: sec, offlineCapped: capped, fresh: false };
+  return {
+    state,
+    rng,
+    offlineSec: sec,
+    offlineCapped: capped,
+    fresh: false,
+    summary: summarise(before, state),
+  };
 }
+
+function summarise(before: GameState, after: GameState): OfflineSummary {
+  const passedBefore = before.stats.totalInspections - before.stats.totalInspectionFailures;
+  const passedAfter = after.stats.totalInspections - after.stats.totalInspectionFailures;
+  return {
+    completed: after.company.completedProjects - before.company.completedProjects,
+    repairs: after.stats.repairCount - before.stats.repairCount,
+    inspectionsPassed: passedAfter - passedBefore,
+    inspectionsFailed: after.stats.totalInspectionFailures - before.stats.totalInspectionFailures,
+    cashDelta: after.company.cash - before.company.cash,
+    netWorthDelta: netWorth(after) - netWorth(before),
+  };
+}
+
+const emptySummary: OfflineSummary = {
+  completed: 0,
+  repairs: 0,
+  inspectionsPassed: 0,
+  inspectionsFailed: 0,
+  cashDelta: 0,
+  netWorthDelta: 0,
+};
 
 export function load(
   nowMs: number,
@@ -104,6 +153,7 @@ export function load(
       offlineSec: 0,
       offlineCapped: false,
       fresh: true,
+      summary: emptySummary,
     };
   }
   return applyOffline(saveData, nowMs);
@@ -129,7 +179,10 @@ export function createAutosave(
   const intervalSec = data.balance.save.autosaveSec;
   let sinceSaveSec = 0;
 
+  let disposed = false;
+
   const flush = (state: GameState, rng: Rng, nowMs: number): void => {
+    if (disposed) return;
     sinceSaveSec = 0;
     save(state, rng, nowMs, storage);
   };
@@ -146,11 +199,14 @@ export function createAutosave(
 
   return {
     tick(dtSec, state, rng, nowMs) {
+      if (disposed) return;
       sinceSaveSec += dtSec;
       if (sinceSaveSec >= intervalSec) flush(state, rng, nowMs);
     },
     flush,
+    /** Stops all further saving, including the unload flush. */
     dispose() {
+      disposed = true;
       target?.removeEventListener('beforeunload', onUnload);
     },
   };

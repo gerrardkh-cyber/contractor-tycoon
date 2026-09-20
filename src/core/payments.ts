@@ -2,6 +2,7 @@
 
 import { balance, requireClientTrait, requireEvent } from './data';
 import { creditCash } from './company';
+import { pushEvent } from './log';
 import { isLifelineProject } from './project';
 import { nextId } from './state';
 import type { Rng } from './rng';
@@ -52,6 +53,14 @@ export function releaseProgressPayment(
   } else {
     creditCash(state, breakdown.net);
   }
+
+  pushEvent(state, {
+    kind: 'payment',
+    projectId: project.id,
+    typeId: project.typeId,
+    amount: breakdown.net,
+    delayed,
+  });
   return breakdown;
 }
 

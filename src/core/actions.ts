@@ -12,6 +12,7 @@ import {
   replaceRfq,
   winChanceFor,
 } from './rfq';
+import { pushEvent } from './log';
 import { nextId } from './state';
 import type { Rng } from './rng';
 import type {
@@ -78,7 +79,20 @@ function submitBid(state: GameState, rfqId: string, tier: BidTierId, rng: Rng): 
   const awardedRfq = rfq;
   replaceRfq(state, rfq.id, rng);
 
-  if (won) state.projects.push(createProject(state, awardedRfq, tierId, rng));
+  if (!won) {
+    pushEvent(state, { kind: 'bidLost', typeId: awardedRfq.typeId });
+    return { state, ok: true };
+  }
+
+  const project = createProject(state, awardedRfq, tierId, rng);
+  state.projects.push(project);
+  pushEvent(state, {
+    kind: 'awarded',
+    projectId: project.id,
+    typeId: project.typeId,
+    bidTier: tierId,
+    amount: project.awarded,
+  });
   return { state, ok: true };
 }
 
@@ -208,6 +222,7 @@ function abandonProject(state: GameState, projectId: string): ActionResult {
     progress: progressOf(project),
   });
   state.stats.abandonedProjects += 1;
+  pushEvent(state, { kind: 'abandoned', projectId: project.id, typeId: project.typeId });
 
   state.projects = state.projects.filter((entry) => entry.id !== projectId);
   state.pendingDecisions = state.pendingDecisions.filter(

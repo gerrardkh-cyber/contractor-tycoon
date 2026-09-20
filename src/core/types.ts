@@ -179,6 +179,27 @@ export interface Stats {
   bankruptAtSec: number | null;
 }
 
+/** What happened, for the UI to narrate. Never read back by any rule. */
+export type GameEvent =
+  | { id: string; atSec: number; kind: 'awarded'; projectId: string; typeId: string; bidTier: BidTierId; amount: number }
+  | { id: string; atSec: number; kind: 'bidLost'; typeId: string }
+  | {
+      id: string;
+      atSec: number;
+      kind: 'inspection';
+      projectId: string;
+      typeId: string;
+      gateId: string;
+      floor: number | null;
+      passed: boolean;
+      minors: number;
+    }
+  | { id: string; atSec: number; kind: 'payment'; projectId: string; typeId: string; amount: number; delayed: boolean }
+  | { id: string; atSec: number; kind: 'completed'; projectId: string; typeId: string; late: boolean; amount: number }
+  | { id: string; atSec: number; kind: 'abandoned'; projectId: string; typeId: string }
+  | { id: string; atSec: number; kind: 'defect'; typeId: string; occurred: boolean; amount: number }
+  | { id: string; atSec: number; kind: 'licenseUp'; tier: number };
+
 export interface GameState {
   elapsedSec: number;
   company: Company;
@@ -192,6 +213,8 @@ export interface GameState {
   abandoned: AbandonedRecord[];
   pendingPayments: PendingPayment[];
   pendingDecisions: PendingDecision[];
+  /** Ring buffer of recent events, oldest first. */
+  log: GameEvent[];
   weather: WeatherState;
   market: MarketState;
   boosts: BoostState;

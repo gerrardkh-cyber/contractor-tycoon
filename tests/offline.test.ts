@@ -3,6 +3,7 @@ import { advance, createInitialState, createRng, data } from '../src/core';
 import {
   applyOffline,
   clearSave,
+  createAutosave,
   load,
   offlineSecondsFor,
   readSave,
@@ -128,3 +129,23 @@ function createRngAt(value: number) {
   rng.setState(value);
   return rng;
 }
+
+describe('autosave disposal', () => {
+  it('stops writing once disposed, so a delete actually sticks', () => {
+    const storage = memoryStorage();
+    const rng = seeded(71);
+    const state = createInitialState();
+
+    const autosave = createAutosave(() => ({ state, rng }), storage);
+    autosave.tick(data.balance.save.autosaveSec, state, rng, 1_000);
+    expect(readSave(storage)).not.toBeNull();
+
+    autosave.dispose();
+    clearSave(storage);
+
+    // Anything that would have saved after the delete must be a no-op.
+    autosave.tick(data.balance.save.autosaveSec, state, rng, 2_000);
+    autosave.flush(state, rng, 3_000);
+    expect(readSave(storage)).toBeNull();
+  });
+});

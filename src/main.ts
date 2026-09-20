@@ -1,3 +1,6 @@
-// Entry point. Bootstraps the UI layer.
-// Order 001 is scaffolding only: no game logic lives here yet.
-export {};
+// Entry point. Mounts the UI; all game rules live in src/core.
+
+import { mount } from './ui/app';
+
+const root = document.querySelector<HTMLElement>('#app');
+if (root) mount(root);

@@ -78,7 +78,12 @@
     "minCashStages": [
       "foundation",
       "structural"
-    ]
+    ],
+    "firstRfq": {
+      "typeId": "house",
+      "inspector": "lenient",
+      "clientTrait": "price"
+    }
   },
   "lifeline": {
     "typeId": "repair",
@@ -125,7 +130,7 @@
       "basePassRate": 0.7,
       "minorMin": 1,
       "minorMax": 3,
-      "contractMultiplier": 1.05
+      "contractMultiplier": 1.12
     },
     {
       "id": "strict",
@@ -191,5 +196,8 @@
   },
   "boosts": {
     "doubleIncomeSec": 240
+  },
+  "log": {
+    "maxEntries": 60
   }
 }

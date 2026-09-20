@@ -12,9 +12,24 @@ function boardedState(rng = seeded(5), cash?: number): GameState {
   return advance({ ...state, company: { ...state.company, cash } }, 0.25, rng);
 }
 
-/** Every RFQ is within reach, so the bid itself is what is under test. */
+/** The first RFQ of a new game is the scripted named bid; skip it. */
+function firstOpenRfq(state: GameState): Rfq {
+  const rfq = state.board.find((entry) => !entry.directAward && !isLifeline(entry));
+  if (!rfq) throw new Error('no ordinary RFQ on the board');
+  return rfq;
+}
+
+/**
+ * Every RFQ is within reach and the scripted opening bid has been cleared, so
+ * what is left under test is ordinary bidding.
+ */
 function fundedBoard(rng = seeded(5)): GameState {
-  return boardedState(rng, 10_000_000);
+  let state = boardedState(rng, 10_000_000);
+  const scripted = state.board.find((entry) => entry.directAward);
+  if (scripted) {
+    state = applyAction(state, { type: 'rejectRfq', rfqId: scripted.id }, rng).state;
+  }
+  return state;
 }
 
 function rfqWith(state: GameState, predicate: (rfq: Rfq) => boolean): Rfq | undefined {
@@ -47,7 +62,7 @@ describe('board', () => {
   it('replaces a slot immediately when it is declined', () => {
     const rng = seeded(31);
     const state = boardedState(rng);
-    const target = state.board[0]!;
+    const target = firstOpenRfq(state);
     const result = applyAction(state, { type: 'rejectRfq', rfqId: target.id }, rng);
     expect(result.ok).toBe(true);
     expect(result.state.board.some((rfq) => rfq.id === target.id)).toBe(false);
@@ -57,7 +72,7 @@ describe('board', () => {
   it('does not count a declined RFQ as a lost bid', () => {
     const rng = seeded(32);
     const state = boardedState(rng);
-    const result = applyAction(state, { type: 'rejectRfq', rfqId: state.board[0]!.id }, rng);
+    const result = applyAction(state, { type: 'rejectRfq', rfqId: firstOpenRfq(state).id }, rng);
     expect(result.state.company.consecutiveBidLosses).toBe(0);
   });
 });
@@ -65,7 +80,7 @@ describe('board', () => {
 describe('win chance', () => {
   it('uses the tier base for a trait with no bid effect', () => {
     const state = boardedState();
-    const rfq = rfqWith(state, (entry) => entry.clientTrait === 'schedule');
+    const rfq = rfqWith(state, (entry) => entry.clientTrait === 'schedule' && !entry.directAward);
     if (!rfq) return;
     expect(winChanceFor(state, rfq, 'low')).toBeCloseTo(0.8, 10);
     expect(winChanceFor(state, rfq, 'fair')).toBeCloseTo(0.5, 10);
@@ -74,10 +89,10 @@ describe('win chance', () => {
 
   it('shifts low up and high down for a price-driven client', () => {
     let state = boardedState(seeded(77));
-    let rfq = rfqWith(state, (entry) => entry.clientTrait === 'price');
+    let rfq = rfqWith(state, (entry) => entry.clientTrait === 'price' && !entry.directAward);
     for (let i = 0; i < 50 && !rfq; i += 1) {
       state = advance(state, 90, seeded(77 + i));
-      rfq = rfqWith(state, (entry) => entry.clientTrait === 'price');
+      rfq = rfqWith(state, (entry) => entry.clientTrait === 'price' && !entry.directAward);
     }
     expect(rfq).toBeDefined();
     expect(winChanceFor(state, rfq!, 'low')).toBeCloseTo(0.9, 10);
@@ -87,10 +102,10 @@ describe('win chance', () => {
 
   it('gives a record-driven client a flat bonus only above the trust threshold', () => {
     let state = boardedState(seeded(101));
-    let rfq = rfqWith(state, (entry) => entry.clientTrait === 'track');
+    let rfq = rfqWith(state, (entry) => entry.clientTrait === 'track' && !entry.directAward);
     for (let i = 0; i < 50 && !rfq; i += 1) {
       state = advance(state, 90, seeded(101 + i));
-      rfq = rfqWith(state, (entry) => entry.clientTrait === 'track');
+      rfq = rfqWith(state, (entry) => entry.clientTrait === 'track' && !entry.directAward);
     }
     expect(rfq).toBeDefined();
 
@@ -112,7 +127,7 @@ describe('three consecutive losses earn a named bid', () => {
     let state = fundedBoard(losing);
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const target = state.board[0]!;
+      const target = firstOpenRfq(state);
       const result = applyAction(state, { type: 'submitBid', rfqId: target.id, tier: 'fair' }, losing);
       expect(result.ok).toBe(true);
       state = result.state;
@@ -127,7 +142,7 @@ describe('three consecutive losses earn a named bid', () => {
     let state = fundedBoard(losing);
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
+      state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, losing).state;
     }
 
     expect(state.company.consecutiveBidLosses).toBe(2);
@@ -140,11 +155,11 @@ describe('three consecutive losses earn a named bid', () => {
     const winning = constantRng(0);
     let state = fundedBoard(losing);
 
-    state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
-    state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
+    state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, losing).state;
+    state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, losing).state;
     expect(state.company.consecutiveBidLosses).toBe(2);
 
-    state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, winning).state;
+    state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, winning).state;
     expect(state.company.consecutiveBidLosses).toBe(0);
     expect(state.projects.length).toBe(1);
   });
@@ -153,7 +168,7 @@ describe('three consecutive losses earn a named bid', () => {
     const losing = constantRng(0.999);
     let state = fundedBoard(losing);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, losing).state;
+      state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, losing).state;
     }
     const named = state.board.find((rfq) => rfq.directAward)!;
     // Still a losing rng, yet a named bid cannot be lost.
@@ -167,10 +182,10 @@ describe('site slots', () => {
   it('refuses a bid when every site is occupied', () => {
     const winning = constantRng(0);
     let state = fundedBoard(winning);
-    state = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, winning).state;
+    state = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, winning).state;
     expect(state.projects.length).toBe(1);
 
-    const result = applyAction(state, { type: 'submitBid', rfqId: state.board[0]!.id, tier: 'fair' }, winning);
+    const result = applyAction(state, { type: 'submitBid', rfqId: firstOpenRfq(state).id, tier: 'fair' }, winning);
     expect(result.ok).toBe(false);
     expect(result.error).toBe('no free site slot');
   });

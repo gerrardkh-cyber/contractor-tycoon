@@ -2,6 +2,7 @@
 
 import { balance, requireEvent, requireGate, requireInspector } from './data';
 import { adjustTrust, gateInspectionBonus } from './company';
+import { pushEvent } from './log';
 import { randInt, type Rng } from './rng';
 import type { GameState, Project, Task } from './types';
 
@@ -59,6 +60,15 @@ export function rollGate(
     project.inspectionsFailed += 1;
     task.majorFailures += 1;
     adjustTrust(state, balance.trust.inspectionMajorFail);
+    pushEvent(state, {
+      kind: 'inspection',
+      projectId: project.id,
+      typeId: project.typeId,
+      gateId,
+      floor: task.floor,
+      passed: false,
+      minors: 0,
+    });
     return { passed: false, minors: 0 };
   }
 
@@ -69,6 +79,15 @@ export function rollGate(
   project.punchTotalGenerated += minors;
   state.stats.totalMinorsGenerated += minors;
   adjustTrust(state, balance.trust.inspectionPass);
+  pushEvent(state, {
+    kind: 'inspection',
+    projectId: project.id,
+    typeId: project.typeId,
+    gateId,
+    floor: task.floor,
+    passed: true,
+    minors,
+  });
   return { passed: true, minors };
 }
 
