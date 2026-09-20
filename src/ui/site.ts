@@ -110,7 +110,7 @@ function decisionBlock(ctx: Ctx, project: Project): HTMLElement | null {
 
 export function renderSiteCard(ctx: Ctx, project: Project): HTMLElement {
   const type = data.requireProjectType(project.typeId);
-  const canvas = createBuildingCanvas();
+  const canvas = createBuildingCanvas(type.floors);
   drawBuilding(canvas, project);
 
   const task = activeTask(project);

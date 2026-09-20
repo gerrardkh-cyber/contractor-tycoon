@@ -43,12 +43,32 @@ export function bandStateOf(project: Project, stageId: string): BandState {
   return 'active';
 }
 
-export function createBuildingCanvas(): HTMLCanvasElement {
+/** Tall enough for the building it has to hold, and no taller. */
+export function canvasHeightFor(floors: number): number {
+  const {
+    bandHeight,
+    floorGap,
+    floorUnit,
+    buildingGround,
+    canvasHeadroom,
+    canvasMinHeight,
+    canvasMaxHeight,
+  } = theme.size;
+
+  // Three bands: foundation below, weatherproofing and fit-out above.
+  const bands = bandHeight * 3;
+  const gaps = floorGap * (floors + 3);
+  const raw = buildingGround + bands + gaps + floors * floorUnit + canvasHeadroom;
+  return Math.round(Math.max(canvasMinHeight, Math.min(canvasMaxHeight, raw)));
+}
+
+export function createBuildingCanvas(floors: number): HTMLCanvasElement {
+  const height = canvasHeightFor(floors);
   const canvas = document.createElement('canvas');
   canvas.className = 'building';
   canvas.width = theme.size.canvasWidth;
-  canvas.height = theme.size.canvasHeight;
-  canvas.style.aspectRatio = `${theme.size.canvasWidth} / ${theme.size.canvasHeight}`;
+  canvas.height = height;
+  canvas.style.aspectRatio = `${theme.size.canvasWidth} / ${height}`;
   return canvas;
 }
 
@@ -56,7 +76,8 @@ export function drawBuilding(canvas: HTMLCanvasElement, project: Project): void 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  const { canvasWidth: w, canvasHeight: h, bandHeight, floorGap } = theme.size;
+  const { canvasWidth: w, bandHeight, floorGap } = theme.size;
+  const h = canvasHeightFor(project.floors);
   const ratio = Math.min(2, globalThis.devicePixelRatio || 1);
   if (canvas.width !== w * ratio) {
     canvas.width = w * ratio;

@@ -104,6 +104,15 @@ function rfqCard(ctx: Ctx, rfq: Rfq, result: BidResult | undefined): HTMLElement
         tierButton(ctx, rfq, 'high', blocked),
       ]),
     );
+    // GDD 3.1: declining refills the slot at once. Named, negotiated and
+    // lifeline work is take-it-or-leave-it and has no Decline.
+    card.append(
+      el('div', { class: 'btn-row' }, [
+        button(strings.board.decline, () => {
+          ctx.dispatch({ type: 'rejectRfq', rfqId: rfq.id });
+        }, { class: 'btn small' }),
+      ]),
+    );
   }
 
   if (!affordable) {

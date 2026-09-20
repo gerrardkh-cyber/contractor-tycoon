@@ -63,7 +63,14 @@ export const theme = {
     canvasWidth: 168,
     /** Cap on screen so a wide column does not blow the building up. */
     canvasMaxWidth: 210,
-    canvasHeight: 190,
+    /**
+     * Canvas height follows the floor count, so a one-storey house is not a
+     * tall box of empty sky. Clamped at both ends.
+     */
+    floorUnit: 14,
+    canvasHeadroom: 12,
+    canvasMinHeight: 96,
+    canvasMaxHeight: 200,
     floorGap: 2,
     bandHeight: 10,
     minFloorHeight: 7,
