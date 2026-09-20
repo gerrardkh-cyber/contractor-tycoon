@@ -88,14 +88,12 @@ function rfqCard(ctx: Ctx, rfq: Rfq, result: BidResult | undefined): HTMLElement
   ]);
 
   if (rfq.directAward) {
+    // A named or negotiated contract is a single Fair button, per order 003.
     card.append(
       el('div', { class: 'btn-row' }, [
         button(strings.board.accept, () => {
           ctx.dispatch({ type: 'submitBid', rfqId: rfq.id, tier: 'fair' });
         }, { class: 'btn primary', disabled: blocked }),
-        button(strings.board.decline, () => {
-          ctx.dispatch({ type: 'rejectRfq', rfqId: rfq.id });
-        }, { class: 'btn' }),
       ]),
     );
   } else {
@@ -104,14 +102,6 @@ function rfqCard(ctx: Ctx, rfq: Rfq, result: BidResult | undefined): HTMLElement
         tierButton(ctx, rfq, 'low', blocked),
         tierButton(ctx, rfq, 'fair', blocked),
         tierButton(ctx, rfq, 'high', blocked),
-      ]),
-    );
-    // Declining is a rule in GDD 3.1: the slot refills at once.
-    card.append(
-      el('div', { class: 'btn-row' }, [
-        button(strings.board.decline, () => {
-          ctx.dispatch({ type: 'rejectRfq', rfqId: rfq.id });
-        }, { class: 'btn small' }),
       ]),
     );
   }

@@ -1,4 +1,4 @@
-import { netWorth } from '../core';
+import { data, netWorth } from '../core';
 import { bar, clear, el, stat } from './dom';
 import { money } from './format';
 import { strings } from './strings.en';
@@ -19,7 +19,7 @@ export function renderTopBar(host: HTMLElement, ctx: Ctx): void {
   const trust = el('div', { class: 'stat' }, [
     el('span', { class: 'stat-label', text: strings.topBar.trust }),
     el('span', { class: 'stat-value', text: String(Math.round(company.trust)) }),
-    bar(company.trust / 100, 'bar-fill trust'),
+    bar(company.trust / data.balance.trust.max, 'bar-fill trust'),
   ]);
   host.append(trust);
 

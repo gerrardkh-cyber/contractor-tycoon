@@ -36,14 +36,28 @@ export const theme = {
 
     sky: '#171b22',
     ground: '#2a2118',
+
+    /** Translucent layers. Kept here so a retheme moves them with everything else. */
+    overlay: 'rgba(8, 10, 13, 0.72)',
+    scrim: 'rgba(18, 21, 26, 0.93)',
+    shadow: 'rgba(0, 0, 0, 0.4)',
+    hintBg: 'rgba(240, 160, 32, 0.08)',
+    hintBorder: 'rgba(240, 160, 32, 0.30)',
   },
 
   size: {
+    hairline: 1,
     radius: 8,
     radiusSmall: 5,
+    radiusPill: 99,
     gap: 12,
     gapSmall: 6,
+    gapTiny: 3,
     pad: 14,
+    padSmall: 9,
+    padTight: 7,
+    padCell: 4,
+    padModal: 20,
     barHeight: 8,
     /** Building canvas geometry, in CSS pixels before device scaling. */
     canvasWidth: 168,
@@ -54,7 +68,41 @@ export const theme = {
     bandHeight: 10,
     minFloorHeight: 7,
     maxFloorHeight: 20,
+    /** Building canvas insets, in the canvas's own coordinate space. */
+    buildingMargin: 16,
+    buildingGround: 6,
+    foundationOverhang: 4,
+    roofInset: 10,
+    capInset: 2,
+
     touchTarget: 44,
+    touchTargetSmall: 34,
+
+    /** Layout stops and accents used by the stylesheet. */
+    pageBottomPad: 64,
+    statMinWidth: 112,
+    siteMinWidth: 260,
+    siteGridBreakpoint: 620,
+    emptyLotMinHeight: 180,
+    spinner: 18,
+    strokeThin: 2,
+    accentBar: 3,
+    toastBar: 4,
+    logMaxHeight: 220,
+    toastOffset: 18,
+    panelMaxWidth: 420,
+    swatch: 9,
+    shadowBlur: 18,
+    shadowDrop: 6,
+    riseOffset: 8,
+    tagPadX: 7,
+    tagPadY: 2,
+    tierPadY: 8,
+    notePadX: 9,
+    listRowPadY: 7,
+    toastPadX: 12,
+    toastPadY: 10,
+    loadingGap: 10,
   },
 
   font: {

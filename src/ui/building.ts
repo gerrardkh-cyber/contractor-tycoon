@@ -67,9 +67,9 @@ export function drawBuilding(canvas: HTMLCanvasElement, project: Project): void 
   ctx.fillStyle = theme.color.sky;
   ctx.fillRect(0, 0, w, h);
 
-  const margin = 16;
+  const margin = theme.size.buildingMargin;
   const bodyWidth = w - margin * 2;
-  const groundHeight = 6;
+  const groundHeight = theme.size.buildingGround;
 
   // Ground line.
   ctx.fillStyle = theme.color.ground;
@@ -88,7 +88,8 @@ export function drawBuilding(canvas: HTMLCanvasElement, project: Project): void 
   // Foundation band sits at the bottom.
   y -= bandHeight;
   ctx.fillStyle = bandColors[bandStateOf(project, 'foundation')];
-  ctx.fillRect(margin - 4, y, bodyWidth + 8, bandHeight);
+  const overhang = theme.size.foundationOverhang;
+  ctx.fillRect(margin - overhang, y, bodyWidth + overhang * 2, bandHeight);
   y -= floorGap;
 
   // Floors stack upward.
@@ -104,7 +105,7 @@ export function drawBuilding(canvas: HTMLCanvasElement, project: Project): void 
   for (const stageId of ['weatherproof', 'final'] as const) {
     y -= bandHeight;
     if (y < 0) break;
-    const inset = stageId === 'final' ? 10 : 2;
+    const inset = stageId === 'final' ? theme.size.roofInset : theme.size.capInset;
     ctx.fillStyle = bandColors[bandStateOf(project, stageId)];
     ctx.fillRect(margin + inset, y, bodyWidth - inset * 2, bandHeight);
     y -= floorGap;
