@@ -210,11 +210,20 @@ function panels(): string {
 
 .empty-lot{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${s.gapSmall}px;
-  min-height:${s.emptyLotMinHeight}px;border:${s.hairline}px dashed ${c.border};border-radius:${s.radius}px;
+  min-height:${s.emptyLotMinHeight}px;padding:${s.pad}px;
+  border:${s.hairline}px dashed ${c.border};border-radius:${s.radius}px;
   color:${c.textFaint};background:
     repeating-linear-gradient(90deg,${c.blueprintLine} 0 ${s.blueprintGridStroke}px,${c.transparent} ${s.blueprintGridStroke}px ${s.blueprintGrid}px),
     repeating-linear-gradient(0deg,${c.blueprintLine} 0 ${s.blueprintGridStroke}px,${c.transparent} ${s.blueprintGridStroke}px ${s.blueprintGrid}px);
 }
+
+.slot-head{display:flex;justify-content:space-between;align-items:baseline;gap:${s.gapSmall}px;width:100%}
+.slot-title{font-size:${f.title};font-weight:600;color:${c.text}}
+.slot-price{font-family:${f.mono};color:${c.blueprint}}
+.slot-short{color:${c.warn}}
+.empty-lot.is-next{border-color:${c.accentDim};color:${c.textDim}}
+.empty-lot.is-locked{opacity:.55}
+.empty-lot > .btn{flex:0 0 auto}
 
 .btn{
   background:${c.panelRaised};border:${s.hairline}px solid ${c.border};border-radius:${s.radiusSmall}px;

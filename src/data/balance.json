@@ -1,6 +1,6 @@
 {
   "start": {
-    "cash": 80000,
+    "cash": 95000,
     "trust": 50,
     "licenseTier": 1,
     "siteSlots": 1,
@@ -54,6 +54,7 @@
   },
   "bidding": {
     "boardSlots": 3,
+    "maxPerType": 2,
     "rotationSec": 90,
     "tiers": [
       {

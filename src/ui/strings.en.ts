@@ -18,7 +18,11 @@ export const strings = {
 
   site: {
     emptyTitle: 'Empty lot',
+    emptyReady: 'Ready for the next job',
     buySlot: (cost: string) => `Buy slot ${cost}`,
+    nextSite: 'Next site',
+    slotShort: (amount: string) => `${amount} short`,
+    slotLocked: (n: number) => `Opens once site ${n} is yours`,
     slotCapReached: 'All lots in use',
     cannotAfford: 'Not enough cash',
     deadline: 'Deadline',

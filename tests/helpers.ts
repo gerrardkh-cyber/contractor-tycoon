@@ -34,7 +34,10 @@ export function awardProject(
   for (let attempt = 0; attempt < 20000; attempt += 1) {
     if (state.projects.length > 0) return state;
 
-    const candidates = typeId ? state.board.filter((entry) => entry.typeId === typeId) : state.board;
+    // A named or negotiated contract is fair-only, so bidding it would quietly
+    // ignore the tier the caller asked for and hand back the wrong project.
+    const byType = typeId ? state.board.filter((entry) => entry.typeId === typeId) : state.board;
+    const candidates = tier === 'fair' ? byType : byType.filter((entry) => !entry.directAward);
     const match = candidates.find((entry) => canAffordBid(state, entry));
 
     if (match) {

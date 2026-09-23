@@ -5,6 +5,9 @@ import {
   clientTraits,
   inspectors,
   projectTypes,
+  type ClientTraitData,
+  type InspectorData,
+  type ProjectTypeData,
   requireBidTier,
   requireClientTrait,
   requireInspector,
@@ -108,10 +111,58 @@ function oldestNormalRfq(state: GameState): Rfq | undefined {
   return oldest;
 }
 
+/** One possible posting: what it is, who wants it, and who will inspect it. */
+interface Posting {
+  type: ProjectTypeData;
+  trait: ClientTraitData;
+  inspector: InspectorData;
+  weight: number;
+}
+
+function postingKey(typeId: string, inspectorId: string, traitId: string): string {
+  return `${typeId}|${inspectorId}|${traitId}`;
+}
+
+/** Everything the board could legally post right now. */
+function allPostings(state: GameState): Posting[] {
+  const out: Posting[] = [];
+  for (const type of eligibleTypes(state)) {
+    for (const trait of clientTraits) {
+      for (const inspector of availableInspectors(state)) {
+        out.push({ type, trait, inspector, weight: trait.weight * inspector.weight });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * GDD 3.1: the three live slots never repeat a (type, inspector, client)
+ * combination, and no single type takes more than `maxPerType` of them. Three
+ * versions of the same job is not a choice, it is a queue.
+ *
+ * When the player's licence and standing cannot produce a distinct posting,
+ * the constraint is dropped rather than leaving a slot empty: a board with a
+ * gap in it would be a worse lie than a board with a repeat.
+ */
+function pickPosting(state: GameState, rng: Rng): Posting {
+  const live = normalRfqs(state);
+  const taken = new Set(live.map((rfq) => postingKey(rfq.typeId, rfq.inspector, rfq.clientTrait)));
+  const perType = new Map<string, number>();
+  for (const rfq of live) perType.set(rfq.typeId, (perType.get(rfq.typeId) ?? 0) + 1);
+
+  const all = allPostings(state);
+  const distinct = all.filter(
+    (posting) =>
+      !taken.has(postingKey(posting.type.id, posting.inspector.id, posting.trait.id)) &&
+      (perType.get(posting.type.id) ?? 0) < balance.bidding.maxPerType,
+  );
+
+  return weightedPick(rng, distinct.length > 0 ? distinct : all, (posting) => posting.weight);
+}
+
 export function createRfq(state: GameState, rng: Rng): Rfq {
-  const type = weightedPick(rng, eligibleTypes(state), () => 1);
-  const trait = weightedPick(rng, clientTraits, (entry) => entry.weight);
-  const inspector = weightedPick(rng, availableInspectors(state), (entry) => entry.weight);
+  const { type, trait, inspector } = pickPosting(state, rng);
 
   const contractBase = type.baseContract * inspector.contractMultiplier;
   const owedNamedBid = state.company.pendingDirectAward;

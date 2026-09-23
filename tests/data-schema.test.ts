@@ -106,7 +106,7 @@ describe('inspection gates', () => {
 
 describe('balance figures', () => {
   it('carries the confirmed start state', () => {
-    expect(balance.start).toEqual({ cash: 80000, trust: 50, licenseTier: 1, siteSlots: 1, subLevel: 1 });
+    expect(balance.start).toEqual({ cash: 95000, trust: 50, licenseTier: 1, siteSlots: 1, subLevel: 1 });
   });
 
   it('splits the floor share across structural and mep', () => {

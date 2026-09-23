@@ -91,6 +91,7 @@ export function play(cue: CueName): void {
 function create(cue: CueName): HTMLAudioElement {
   const element = new Audio(urls[cue]);
   element.preload = 'auto';
+  element.volume = theme.soundVolume;
   elements[cue] = element;
   return element;
 }

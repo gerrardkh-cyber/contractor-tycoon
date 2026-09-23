@@ -76,6 +76,10 @@ export function createBoard(): BoardView {
       if (live.has(id) || leaving.has(id)) continue;
       leaving.add(id);
       card.node.classList.add('is-leaving');
+      // A card on its way out still holds whatever hint it was showing. The
+      // replacement takes the hint on the same frame, so strip it here or the
+      // player sees the same line twice while the slide plays.
+      card.node.querySelector('.hint')?.remove();
       globalThis.setTimeout(() => {
         card.node.remove();
         cards.delete(id);

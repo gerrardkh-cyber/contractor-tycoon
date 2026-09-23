@@ -12,6 +12,7 @@ import {
   applyAction,
   data,
   isLifeline,
+  nextSiteSlotCost,
   type Action,
   type GameEvent,
   type GameState,
@@ -26,7 +27,7 @@ import { injectStyles } from './style';
 import { createBoard, type BidResult } from './board';
 import { createCompanyPanel } from './company';
 import { createLog } from './log';
-import { createSiteCard, renderEmptyLot, type SiteCard } from './site';
+import { createSiteCard, renderSlotCard, type SiteCard } from './site';
 import { createTopBar } from './topbar';
 import { createSkeleton, createTitleScreen } from './title';
 import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
@@ -36,6 +37,8 @@ import type { Ctx } from './context';
 
 const STEP_SEC = 0.1;
 const HINT_KEY = 'contractor-tycoon:hint';
+/** Slot cards only redraw when the shortfall moves by this much. */
+const SLOT_SHORTFALL_STEP = 1000;
 
 export function mount(root: HTMLElement): void {
   injectStyles();
@@ -148,6 +151,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
 
   /** One card per running site, kept across frames and keyed by project id. */
   const siteCards = new Map<string, SiteCard>();
+  let slotKey = '';
 
   function setHint(step: number): void {
     hintStep = step;
@@ -297,13 +301,35 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
       card.update(ctx, project);
     }
 
-    // Empty lots fill whatever the running sites do not.
+    syncSlots();
+  }
+
+  /**
+   * Every slot the company could ever hold keeps its place, so the room to
+   * grow is on screen from the first minute rather than appearing the moment
+   * it becomes affordable. Repair work is excluded: it takes no slot.
+   */
+  function syncSlots(): void {
+    const maxSlots = data.balance.sites.maxSlots;
     const running = state.projects.filter((p) => !isRepair(p.typeId)).length;
-    const wanted = Math.max(0, state.company.siteSlots - running);
-    const lots = sites.querySelectorAll('.empty-lot');
-    if (lots.length !== wanted) {
-      for (const lot of lots) lot.remove();
-      for (let i = 0; i < wanted; i += 1) sites.append(renderEmptyLot(ctx));
+    const first = running + 1;
+
+    // Rebuilding on every frame would be waste; the shortfall only needs to
+    // move in round figures, so the key rounds it.
+    const nextCost = nextSiteSlotCost(state);
+    const shortfall = nextCost === null ? 0 : Math.max(0, nextCost - state.company.cash);
+    const key = [
+      first,
+      maxSlots,
+      state.company.siteSlots,
+      Math.round(shortfall / SLOT_SHORTFALL_STEP),
+    ].join(':');
+    if (key === slotKey) return;
+    slotKey = key;
+
+    for (const lot of sites.querySelectorAll('.empty-lot')) lot.remove();
+    for (let slot = first; slot <= maxSlots; slot += 1) {
+      sites.append(renderSlotCard(ctx, slot));
     }
   }
 

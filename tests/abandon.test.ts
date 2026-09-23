@@ -257,10 +257,10 @@ describe('bid eligibility floor', () => {
 
   it('lets a starting company reach house but nothing taller', () => {
     const state = advance(createInitialState(), 0.25, seeded(23));
-    expect(state.company.cash).toBe(80_000);
-    expect(minCashToBid('house')).toBeLessThan(80_000);
+    expect(state.company.cash).toBe(95_000);
+    expect(minCashToBid('house')).toBeLessThan(95_000);
     for (const id of ['lowrise', 'midrise']) {
-      expect(minCashToBid(id), id).toBeGreaterThan(80_000);
+      expect(minCashToBid(id), id).toBeGreaterThan(95_000);
     }
     expect(requireProjectType('house').baseContract).toBe(150_000);
   });

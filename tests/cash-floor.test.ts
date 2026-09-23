@@ -151,10 +151,14 @@ describe('lifeline payments are never delayed', () => {
 
     const repair = state.board.find(isLifeline)!;
     state = applyAction(state, { type: 'submitBid', rfqId: repair.id, tier: 'fair' }, rng).state;
-    const awarded = state.projects[0]!.awarded;
 
+    // The contract can still grow while the job runs (change_order), so track
+    // what it settled at rather than what it opened at.
+    let awarded = state.projects[0]!.awarded;
     for (let i = 0; i < 300 && state.projects.length > 0; i += 1) {
       state = advance(state, 1, rng);
+      const running = state.projects[0];
+      if (running) awarded = running.awarded;
       expect(state.pendingPayments.length, 'a repair payment was queued for later').toBe(0);
     }
 

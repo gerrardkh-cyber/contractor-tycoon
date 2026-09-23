@@ -316,6 +316,11 @@ export const theme = {
 
   /** Sound ships muted; the player turns it on. */
   soundDefaultOn: false,
+  /**
+   * Cues sit under the game, not on top of it. Order 005 fixes this at 0.4
+   * because the pack was chosen by filename, not by ear.
+   */
+  soundVolume: 0.4,
 
   color,
   size,

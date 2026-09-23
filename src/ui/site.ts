@@ -8,7 +8,6 @@
 import {
   data,
   isLate,
-  nextSiteSlotCost,
   progressOf,
   punchItemCost,
   stageDurationSec,
@@ -340,22 +339,66 @@ function legendSwatch(color: string, label: string): HTMLElement {
   ]);
 }
 
-export function renderEmptyLot(ctx: Ctx): HTMLElement {
-  const cost = nextSiteSlotCost(ctx.state);
-  if (cost === null) {
+/** What the next slot costs, or null if the board has no such slot. */
+function slotCostFor(slotNumber: number): number | null {
+  const entry = data.balance.sites.slotCosts.find((row) => row.slot === slotNumber);
+  return entry ? entry.cost : null;
+}
+
+/**
+ * One position in the site area. Order 005: every slot the company could ever
+ * hold keeps its place on screen, so the room to grow is visible from the
+ * first screen rather than appearing once it is affordable.
+ */
+export function renderSlotCard(ctx: Ctx, slotNumber: number): HTMLElement {
+  const { company } = ctx.state;
+
+  // A slot already owned is simply an empty lot waiting for a job.
+  if (slotNumber <= company.siteSlots) {
     return el('div', { class: 'empty-lot' }, [
+      el('span', { text: strings.site.emptyTitle }),
+      el('span', { class: 'site-sub', text: strings.site.emptyReady }),
+    ]);
+  }
+
+  const cost = slotCostFor(slotNumber);
+  if (cost === null) {
+    return el('div', { class: 'empty-lot is-locked' }, [
       el('span', { text: strings.site.emptyTitle }),
       el('span', { class: 'site-sub', text: strings.site.slotCapReached }),
     ]);
   }
 
-  const affordable = ctx.state.company.cash >= cost;
-  return el('div', { class: 'empty-lot' }, [
-    el('span', { text: strings.site.emptyTitle }),
-    button(strings.site.buySlot(money(cost)), () => {
-      play('click');
-      ctx.dispatch({ type: 'buySiteSlot' });
-    }, { class: 'btn primary small', disabled: !affordable }),
-    affordable ? null : el('span', { class: 'site-sub', text: strings.site.cannotAfford }),
-  ]);
+  // Only the very next slot can be bought; the ones past it show what is coming.
+  const isNext = slotNumber === company.siteSlots + 1;
+  const shortfall = cost - company.cash;
+  const affordable = isNext && shortfall <= 0;
+
+  const rows: (Node | null)[] = [
+    el('div', { class: 'slot-head' }, [
+      el('span', { class: 'slot-title', text: strings.site.nextSite }),
+      el('span', { class: 'slot-price', text: money(cost) }),
+    ]),
+  ];
+
+  if (isNext) {
+    rows.push(
+      button(strings.site.buySlot(money(cost)), () => {
+        play('click');
+        ctx.dispatch({ type: 'buySiteSlot' });
+      }, { class: 'btn primary small', disabled: !affordable }),
+      affordable
+        ? null
+        : el('span', { class: 'site-sub slot-short', text: strings.site.slotShort(money(shortfall)) }),
+    );
+  } else {
+    rows.push(
+      el('span', { class: 'site-sub', text: strings.site.slotLocked(slotNumber - 1) }),
+    );
+  }
+
+  return el('div', {
+    class: isNext ? 'empty-lot is-next' : 'empty-lot is-locked',
+  }, rows);
 }
+
