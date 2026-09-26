@@ -1,7 +1,7 @@
 // Presentation-only formatting. No rules here: every number arrives already
 // computed by src/core.
 
-import { strings } from './strings.en';
+import { strings } from './strings';
 
 export function money(amount: number): string {
   const rounded = Math.round(amount);

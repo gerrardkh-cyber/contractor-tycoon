@@ -1,14 +1,14 @@
 import { data, type GameEvent } from '../core';
 import { clear, el } from './dom';
 import { duration, money } from './format';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import type { Ctx } from './context';
 
 const VISIBLE = 8;
 
 function typeName(typeId: string): string {
-  const stage = strings.stage as Record<string, string>;
-  return stage[typeId] ?? data.projectTypeById[typeId]?.id ?? typeId;
+  const types = strings.projectType as Record<string, string>;
+  return types[typeId] ?? data.projectTypeById[typeId]?.id ?? typeId;
 }
 
 function gateName(gateId: string): string {

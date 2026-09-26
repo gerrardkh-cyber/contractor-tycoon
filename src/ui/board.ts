@@ -26,14 +26,18 @@ import {
 import { duration, money, percent, percentSigned } from './format';
 import { inspectorIcon, traitIcon } from './icons';
 import { play } from './sound';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
 
-const tierNames = strings.board.tiers as Record<string, string>;
-const traitNames = strings.board.traits as Record<string, string>;
-const inspectorNames = strings.board.inspectors as Record<string, string>;
-const typeNames = strings.stage as Record<string, string>;
+// Read through a function, never captured at module level: `strings` is a live
+// binding and a capture would freeze on whichever language loaded first.
+const tierName = (id: string): string => (strings.board.tiers as Record<string, string>)[id] ?? id;
+const traitName = (id: string): string => (strings.board.traits as Record<string, string>)[id] ?? id;
+const inspectorName = (id: string): string =>
+  (strings.board.inspectors as Record<string, string>)[id] ?? id;
+const typeName = (id: string): string =>
+  (strings.projectType as Record<string, string>)[id] ?? id;
 
 /** Bid results linger on the card for a moment before the slot refills. */
 export interface BidResult {
@@ -136,19 +140,16 @@ function createRfqCard(rfq: Rfq): Card {
   const minCashTag = el('span', { class: 'tag mono' });
   const node = el('div', { class: rfq.directAward ? 'rfq named' : 'rfq' }, [
     el('div', { class: 'rfq-head' }, [
-      el('span', { class: 'site-type', text: typeNames[type.id] ?? type.id }),
+      el('span', { class: 'site-type', text: typeName(type.id) }),
       el('span', { class: 'rfq-price', text: money(rfq.contractBase) }),
     ]),
     el('div', { class: 'rfq-tags' }, [
       el('span', { class: 'tag mono', text: strings.site.floors(type.floors) }),
       el('span', { class: 'tag' }, [
-        withIcon(traitIcon(rfq.clientTrait), traitNames[rfq.clientTrait] ?? rfq.clientTrait),
+        withIcon(traitIcon(rfq.clientTrait), traitName(rfq.clientTrait)),
       ]),
       el('span', { class: 'tag' }, [
-        withIcon(
-          inspectorIcon(rfq.inspector),
-          inspectorNames[rfq.inspector] ?? rfq.inspector,
-        ),
+        withIcon(inspectorIcon(rfq.inspector), inspectorName(rfq.inspector)),
       ]),
       el('span', {
         class: 'tag mono',
@@ -254,7 +255,7 @@ function createTier(rfq: Rfq, tierId: BidTierId): TierButton {
   const chanceLine = el('span', { class: 'tier-line' });
 
   const node = el('button', { class: 'tier', type: 'button' }, [
-    el('span', { class: 'tier-name', text: tierNames[tierId] ?? tierId }),
+    el('span', { class: 'tier-name', text: tierName(tierId) }),
     chanceLine,
     chanceBar,
     marginLine,

@@ -23,6 +23,7 @@ import { clear, el, toggleClass } from './dom';
 import { faviconDataUrl } from './icons';
 import { initMotion, noteFrame } from './motion';
 import { initSound, play } from './sound';
+import { initLanguage, onLanguageChange } from './strings';
 import { injectStyles } from './style';
 import { createBoard, type BidResult } from './board';
 import { createCompanyPanel } from './company';
@@ -31,7 +32,7 @@ import { createSiteCard, renderSlotCard, type SiteCard } from './site';
 import { createTopBar } from './topbar';
 import { createSkeleton, createTitleScreen } from './title';
 import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
 
@@ -44,6 +45,8 @@ export function mount(root: HTMLElement): void {
   injectStyles();
   initMotion();
   initSound();
+  // Language first: everything built after this reads the chosen table.
+  initLanguage();
   document.title = strings.app.title;
   applyFavicon();
 
@@ -59,7 +62,11 @@ export function mount(root: HTMLElement): void {
       // to see is already there when the title fades off it. The clock does
       // not start until they ask for it.
       const game = boot(root, loaded, seed);
-      const title = createTitleScreen(!loaded.fresh, () => title.dismiss(game.start));
+      const title = createTitleScreen(
+        !loaded.fresh,
+        () => title.dismiss(game.start),
+        game.discardSave,
+      );
       document.body.append(title.node);
     }),
   );
@@ -76,6 +83,8 @@ type Loaded = ReturnType<typeof load>;
 interface Game {
   /** Starts the clock. Called once the title screen has gone. */
   start(): void;
+  /** Throws the save away and reloads into a fresh company. */
+  discardSave(): void;
 }
 
 function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
@@ -134,24 +143,47 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     },
   };
 
-  const topbar = createTopBar(ctx);
-  const sites = el('div', { class: 'sites' });
-  const board = createBoard();
-  const company = createCompanyPanel(ctx);
-  const logPanel = createLog();
-
-  root.append(
-    topbar.node,
-    el('div', { class: 'columns' }, [
-      el('div', {}, [sites]),
-      el('div', {}, [board.node, company.node]),
-    ]),
-    logPanel.node,
-  );
+  let topbar = createTopBar(ctx);
+  let sites = el('div', { class: 'sites' });
+  let board = createBoard();
+  let company = createCompanyPanel(ctx);
+  let logPanel = createLog();
 
   /** One card per running site, kept across frames and keyed by project id. */
-  const siteCards = new Map<string, SiteCard>();
+  let siteCards = new Map<string, SiteCard>();
   let slotKey = '';
+
+  function mountPanels(): void {
+    clear(root);
+    root.append(
+      topbar.node,
+      el('div', { class: 'columns' }, [
+        el('div', {}, [sites]),
+        el('div', {}, [board.node, company.node]),
+      ]),
+      logPanel.node,
+    );
+  }
+  mountPanels();
+
+  /**
+   * A language change swaps every label at once. Rather than teach each panel
+   * to re-translate itself in place, the panels are rebuilt: the game state is
+   * untouched, so the only thing that changes is the words.
+   */
+  onLanguageChange(() => {
+    for (const card of siteCards.values()) card.dispose();
+    siteCards = new Map();
+    slotKey = '';
+    topbar = createTopBar(ctx);
+    sites = el('div', { class: 'sites' });
+    board = createBoard();
+    company = createCompanyPanel(ctx);
+    logPanel = createLog();
+    mountPanels();
+    document.title = strings.app.title;
+    render();
+  });
 
   function setHint(step: number): void {
     hintStep = step;
@@ -406,5 +438,13 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     requestAnimationFrame(frame);
   }
 
-  return { start };
+  function discardSave(): void {
+    // Stop autosaving first: the unload flush would write the save straight
+    // back and the delete would do nothing.
+    autosave.dispose();
+    clearSave();
+    globalThis.location.reload();
+  }
+
+  return { start, discardSave };
 }

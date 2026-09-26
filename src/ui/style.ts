@@ -189,7 +189,16 @@ function panels(): string {
 .stat-value.good{color:${c.good}} .stat-value.bad{color:${c.bad}} .stat-value.warn{color:${c.warn}}
 .stat-value.plain{color:${c.text}}
 .stat-value.is-overdue{animation:blink ${m.blinkFastMs}ms ${easing.inOut} infinite}
-.topbar-tools{display:flex;align-items:center;justify-content:flex-end;gap:${s.gapSmall}px}
+.topbar-tools{display:flex;align-items:center;justify-content:flex-end;gap:${s.gapSmall}px;flex-wrap:wrap}
+.lang-toggle{display:inline-flex;gap:0;border:${s.hairline}px solid ${c.border};border-radius:${s.radiusSmall}px;overflow:hidden}
+.lang-btn{border:none;border-radius:0;background:${c.panelSunk};color:${c.textDim};font-family:${f.mono};min-width:${s.touchTargetSmall}px}
+.lang-btn + .lang-btn{border-left:${s.hairline}px solid ${c.border}}
+.lang-btn.is-active{background:${c.accent};color:${c.accentText};font-weight:600}
+.lang-btn:hover:not(.is-active){background:${c.border};color:${c.text}}
+.title-buttons{display:flex;gap:${s.gapSmall}px;flex-wrap:wrap;justify-content:center}
+.title-screen .title-buttons .btn{min-width:${s.titleButtonMinWidth}px}
+.title-screen .lang-toggle{margin-top:${s.gap}px}
+.title-screen .lang-btn{min-width:${s.touchTarget}px}
 
 .site{display:flex;flex-direction:column;gap:${s.gapSmall}px}
 .site-head{display:flex;justify-content:space-between;align-items:baseline;gap:${s.gapSmall}px}

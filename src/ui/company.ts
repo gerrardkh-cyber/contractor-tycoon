@@ -14,11 +14,11 @@ import { bar, button, clear, el, gauge, setBar, setGauge, setText, withIcon } fr
 import { duration, money, multiplier, percentSigned } from './format';
 import { subIcon } from './icons';
 import { play } from './sound';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
 
-const subNames = strings.company.subs as Record<string, string>;
+const subName = (id: string): string => (strings.company.subs as Record<string, string>)[id] ?? id;
 
 export interface CompanyPanel {
   node: HTMLElement;
@@ -143,7 +143,7 @@ function createSubRow(subId: SubId): SubRow {
 
   const node = el('div', { class: 'sub-row' }, [
     el('div', { class: 'sub-name' }, [
-      withIcon(subIcon(subId), el('div', { text: subNames[subId] ?? subId })),
+      withIcon(subIcon(subId), el('div', { text: subName(subId) })),
       effect,
     ]),
     levelGauge,

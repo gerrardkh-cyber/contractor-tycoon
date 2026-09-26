@@ -1,5 +1,8 @@
-// Every player-facing string in the game. Nothing is written inline anywhere
-// else in src/ui. All English, per CLAUDE.md.
+// Every player-facing string in the game, in English. Nothing is written
+// inline anywhere else in src/ui.
+//
+// This table is also the shape every translation must match: strings.ko.ts is
+// typed against it, and tests/strings.test.ts fails on a missing key.
 
 export const strings = {
   app: {
@@ -46,6 +49,13 @@ export const strings = {
     punchBlocking: 'Final inspection is blocked until the punch list is clear',
     punchBilled: 'Billed against retainage at handover',
     clearing: (n: number) => `Clearing ${n}…`,
+  },
+
+  projectType: {
+    house: 'House',
+    lowrise: 'Low-rise',
+    midrise: 'Mid-rise',
+    repair: 'Repair work',
   },
 
   stage: {
@@ -226,6 +236,8 @@ export const strings = {
     soundHint: 'Six short cues. Off by default.',
     motion: 'Motion',
     motionReduced: 'Reduced motion is on: animation is held back.',
+    language: 'Language',
+    languageSwitch: 'Switch language',
   },
 
   ads: {
@@ -246,6 +258,8 @@ export const strings = {
     tagline: 'Win the work. Pass the inspection. Get paid.',
     start: 'Start building',
     continue: 'Continue',
+    newGame: 'New game',
+    newGameConfirm: 'Delete the save?',
     savedNote: 'Your site is where you left it.',
     newNote: 'One lot, one crane, and a tender to win.',
   },

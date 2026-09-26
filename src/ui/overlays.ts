@@ -4,7 +4,7 @@ import { data, type GameState, type Project } from '../core';
 import { button, el } from './dom';
 import { duration, money, moneySigned } from './format';
 import { prefersReducedMotion } from './motion';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import { theme } from './theme';
 import type { ToastRequest } from './context';
 import type { OfflineSummary } from '../save';

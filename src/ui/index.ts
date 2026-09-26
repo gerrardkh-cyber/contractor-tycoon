@@ -7,4 +7,4 @@
 
 export { mount } from './app';
 export { theme } from './theme';
-export { strings } from './strings.en';
+export { strings } from './strings';

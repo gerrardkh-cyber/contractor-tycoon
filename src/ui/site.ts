@@ -32,13 +32,16 @@ import { duration, money, moneySigned, percent } from './format';
 import { createBuildingView } from './building';
 import { inspectorIcon, traitIcon } from './icons';
 import { play } from './sound';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
 
-const stageNames = strings.stage as Record<string, string>;
-const traitNames = strings.board.traits as Record<string, string>;
-const inspectorNames = strings.board.inspectors as Record<string, string>;
+const stageName = (id: string): string => (strings.stage as Record<string, string>)[id] ?? id;
+const typeName = (id: string): string =>
+  (strings.projectType as Record<string, string>)[id] ?? id;
+const traitName = (id: string): string => (strings.board.traits as Record<string, string>)[id] ?? id;
+const inspectorName = (id: string): string =>
+  (strings.board.inspectors as Record<string, string>)[id] ?? id;
 
 /** The task the crew is actually on, for the progress bar and stall reason. */
 function activeTask(project: Project): Task | undefined {
@@ -81,7 +84,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
 
   const node = el('div', { class: 'panel site site-card' }, [
     el('div', { class: 'site-head' }, [
-      el('span', { class: 'site-type', text: stageNames[type.id] ?? type.id }),
+      el('span', { class: 'site-type', text: typeName(type.id) }),
       el('span', { class: 'site-sub', text: strings.site.floors(type.floors) }),
     ]),
     view.node,
@@ -98,7 +101,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
           inspectorIcon(project.inspector),
           el('span', {
             class: 'stat-value plain',
-            text: inspectorNames[project.inspector] ?? project.inspector,
+            text: inspectorName(project.inspector),
           }),
         ),
       ]),
@@ -108,7 +111,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
           traitIcon(project.clientTrait),
           el('span', {
             class: 'stat-value plain',
-            text: traitNames[project.clientTrait] ?? project.clientTrait,
+            text: traitName(project.clientTrait),
           }),
         ),
       ]),
@@ -137,7 +140,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
     view.update(current, context.state);
 
     const task = activeTask(current);
-    setText(stageLabel, task ? stageNames[task.stageId] ?? task.stageId : '');
+    setText(stageLabel, task ? stageName(task.stageId) : '');
     setText(progressLabel, percent(progressOf(current)));
 
     const total = task ? stageDurationSec(context.state, task.stageId) : 0;

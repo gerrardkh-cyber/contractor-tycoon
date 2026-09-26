@@ -7,9 +7,10 @@ import { data, netWorth } from '../core';
 import { button, el, setBar, setClass, setText } from './dom';
 import { money } from './format';
 import { soundIcon } from './icons';
+import { languageToggle } from './language';
 import { NumberTween } from './motion';
 import { onSoundChange, play, soundEnabled, toggleSound } from './sound';
-import { strings } from './strings.en';
+import { strings } from './strings';
 import type { Ctx } from './context';
 
 export interface TopBar {
@@ -49,7 +50,7 @@ export function createTopBar(ctx: Ctx): TopBar {
     trust.node,
     license,
     sites,
-    el('div', { class: 'topbar-tools' }, [soundButton]),
+    el('div', { class: 'topbar-tools' }, [languageToggle(), soundButton]),
   ]);
 
   const company = ctx.state.company;
