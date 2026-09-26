@@ -113,14 +113,27 @@ jobs:
 `main` 에 푸시할 때마다 테스트를 돌리고, 통과하면 배포합니다.
 테스트가 깨지면 배포되지 않습니다 — 그것이 이 순서의 이유입니다.
 
-### 2-3. 주소
+### 2-3. 주소 — **배포 완료**
 
 ```
-https://<GitHub 사용자명>.github.io/contractor-tycoon/
+https://gerrardkh-cyber.github.io/contractor-tycoon/
 ```
+
+저장소: <https://github.com/gerrardkh-cyber/contractor-tycoon> (공개)
 
 `base: './'` 이므로 하위 경로(`/contractor-tycoon/`)에서도 그대로 돌아갑니다.
-`vite.config.ts` 를 고칠 필요가 없습니다.
+`vite.config.ts` 를 고칠 필요가 없었습니다.
+
+**배포 후 실측** (헤드리스 Chrome, 2026-09-27):
+
+| 항목 | 결과 |
+|---|---|
+| HTTP | `200`, HTTPS 강제(`strict-transport-security`) |
+| 첫 화면 | `컨트랙터 타이쿤` — 브라우저 언어 감지로 한국어 |
+| 게임 진입 | 현금 `$95,000`, 공고 3건, 슬롯 3칸 |
+| 수주 후 | 현장 1곳 + 크레인 생성 — 시뮬레이션이 실제로 진행됨 |
+| **외부 요청** | **0건** — CDN 의존 없음이 배포 환경에서도 확인됨 |
+| **콘솔 에러** | **0건** |
 
 ---
 
@@ -159,7 +172,7 @@ Netlify Drop 은 가입 없이 임시 주소를 주므로 **하루 이틀 테스
 
 > **컨트랙터 타이쿤 — 테스트 빌드**
 >
-> - 주소: (배포 후 채우기)
+> - 주소: <https://gerrardkh-cyber.github.io/contractor-tycoon/>
 > - 우측 상단에서 **EN / KO** 를 바꿀 수 있습니다.
 > - 소리는 기본이 꺼져 있습니다. 우측 상단 스피커로 켜세요.
 > - 처음부터 다시 하려면 첫 화면의 **새로 시작**을 누르세요.

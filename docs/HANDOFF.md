@@ -99,10 +99,20 @@
 - `새로 시작` 흐름 실측: 저장 없음 → `착공` 하나 / 저장 있음 → `이어하기` + `새로 시작` /
   한 번 누름 → `저장을 삭제할까요?` 이면서 **저장은 그대로** / 다시 누름 → 새 회사
 
+### 배포 — **완료** (광희님 지시로 006 이후 실행)
+
+- 공개 저장소: <https://github.com/gerrardkh-cyber/contractor-tycoon>
+- 공개 주소: **<https://gerrardkh-cyber.github.io/contractor-tycoon/>**
+- `.github/workflows/pages.yml` 실제 추가 — `main` 푸시마다 **테스트를 먼저 돌리고**
+  통과할 때만 배포합니다. 첫 실행에서 build·deploy 모두 성공했습니다.
+- 헤드리스 Chrome 실측: HTTP 200, 외부 요청 0건, 콘솔 에러 0건,
+  수주 후 현장·크레인 생성까지 확인 (`docs/screenshots/8-live-deploy.png`)
+- 공개 저장소이므로 커밋 작성자 이메일(`gerrardkh@gmail.com`)이 함께 노출됩니다.
+  감추려면 히스토리 재작성이 필요하므로 손대지 않았습니다.
+
 ### 남은 것
 
 - 광희님 확인 (`CLAUDE.md` 언어 규칙은 승인·반영 완료)
-- 실제 배포 (절차만 준비됨)
 - 광고 SDK 미연동
 - 사운드 6종은 여전히 귀로 검증되지 않았습니다
 
