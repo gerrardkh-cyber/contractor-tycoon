@@ -5,7 +5,9 @@
 - 플레이어는 **시공사(General Contractor)**. 발주처는 NPC.
 
 ## 언어 규칙
-- **게임 UI 텍스트는 전부 영어.** 화면에 보이는 문자열에 한국어를 넣지 않는다.
+- **게임 UI 텍스트는 영어와 한국어 두 벌.** 원본은 `src/ui/strings.en.ts`,
+  번역은 `src/ui/strings.ko.ts`. 키는 1:1이며 `tests/strings.test.ts` 가 강제한다.
+- 화면 문자열을 UI 파일에 직접 쓰지 않는다. **한국어는 `strings.ko.ts` 에만 존재한다.**
 - **사용자에게 하는 보고는 한국어 존댓말.**
 
 ## 원본(Source of Truth)
