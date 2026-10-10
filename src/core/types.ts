@@ -118,6 +118,12 @@ export interface Rfq {
   readonly minCash: number;
   /** Named / negotiated award: fair only, wins with certainty. */
   readonly directAward: boolean;
+  /**
+   * Replaces the standard deadline multiplier for this one posting. Only the
+   * opening named job carries it (GDD 4.3): a first build is read as much as
+   * it is played, so it is not run against the usual clock.
+   */
+  readonly deadlineMultiplierOverride?: number;
   readonly postedAtSec: number;
 }
 

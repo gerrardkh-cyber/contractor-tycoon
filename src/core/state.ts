@@ -41,6 +41,8 @@ function openingRfq(state: GameState): Rfq {
   const type = requireProjectType(config.typeId);
   const inspector = requireInspector(config.inspector as InspectorId);
   const trait = requireClientTrait(config.clientTrait as ClientTraitId);
+  // The only posting in the game that does not use the standard multiplier.
+  const deadlineMultiplier = config.deadlineMultiplier;
 
   return {
     id: nextId(state, 'rfq'),
@@ -48,10 +50,11 @@ function openingRfq(state: GameState): Rfq {
     contractBase: type.baseContract * inspector.contractMultiplier,
     clientTrait: trait.id,
     inspector: inspector.id,
-    deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1),
+    deadlineSec: deadlineSecFor(type.id, trait.deadlineMultiplier ?? 1, deadlineMultiplier),
     advanceAvailable: state.company.trust >= balance.economy.advanceTrustRequired,
     minCash: minCashToBid(type.id),
     directAward: true,
+    deadlineMultiplierOverride: deadlineMultiplier,
     postedAtSec: 0,
   };
 }

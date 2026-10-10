@@ -83,7 +83,8 @@
     "firstRfq": {
       "typeId": "house",
       "inspector": "lenient",
-      "clientTrait": "price"
+      "clientTrait": "price",
+      "deadlineMultiplier": 3.0
     }
   },
   "lifeline": {

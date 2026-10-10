@@ -56,6 +56,7 @@ interface Played {
   doneAtSec: number | null;
   endedBeforeHandover: boolean;
   skipAlwaysVisible: boolean;
+  scrolledToSubs: number;
   active: boolean;
   guideClasses: string[];
   seen: boolean;
@@ -75,6 +76,7 @@ function play(seed: number): Played {
     doneAtSec: run.doneAtSec,
     endedBeforeHandover: run.endedBeforeHandover,
     skipAlwaysVisible: run.skipAlwaysVisible,
+    scrolledToSubs: run.scrollsFor('subcontractors'),
     active: run.tutorial.active(),
     guideClasses: run.guideClasses(),
     seen: tutorialSeen(),
@@ -114,6 +116,10 @@ describe.each(CASES)('a guided first job (seed $seed)', ({ seed, rain, punch }) 
 
   it('kept a way out on screen the whole time', () => {
     expect(run.skipAlwaysVisible).toBe(true);
+  });
+
+  it('brought T8 into view rather than captioning a panel below the fold', () => {
+    expect(run.scrolledToSubs).toBeGreaterThan(0);
   });
 
   it('let the panels go when it finished', () => {

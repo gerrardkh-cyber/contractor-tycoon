@@ -7,6 +7,7 @@
 // pointing at.
 
 import { clear, el } from './dom';
+import { motionAllowed } from './motion';
 import { theme } from './theme';
 
 export interface SpotlightTarget {
@@ -109,10 +110,19 @@ export function createSpotlight(skipLabel: string, onSkip: () => void): Spotligh
   }
 
   function show(target: SpotlightTarget): void {
+    // A step whose target is below the fold would caption a thing the player
+    // cannot see, so moving to a new one brings it into the middle first.
+    const moved = current?.node !== target.node;
     current = target;
     node.style.display = '';
     say.textContent = target.say;
     why.textContent = target.why;
+    if (moved) {
+      target.node.scrollIntoView({
+        block: 'center',
+        behavior: motionAllowed() ? 'smooth' : 'auto',
+      });
+    }
     place();
   }
 

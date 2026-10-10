@@ -219,6 +219,11 @@ export class GuideWalk {
     this.toasts = [...this.toasts, { kind, until: this.dom.clock.ms + forMs }];
   }
 
+  /** How many times the guide asked for a target to be brought into view. */
+  scrollsFor(what: TargetName): number {
+    return this.targets.get(what)?.scrolledIntoView ?? 0;
+  }
+
   /** Whether the guide would find this target on the screen right now. */
   onScreen(what: TargetName): boolean {
     return this.find(what) !== null;

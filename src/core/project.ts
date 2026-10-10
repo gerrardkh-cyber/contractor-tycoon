@@ -34,8 +34,12 @@ export function expectedDurationSec(typeId: string): number {
   return serialSec + pipelineSec + (type.floors - 1) * bottleneckSec;
 }
 
-export function deadlineSecFor(typeId: string, traitDeadlineMultiplier: number): number {
-  return expectedDurationSec(typeId) * balance.economy.deadlineMultiplier * traitDeadlineMultiplier;
+export function deadlineSecFor(
+  typeId: string,
+  traitDeadlineMultiplier: number,
+  baseMultiplier: number = balance.economy.deadlineMultiplier,
+): number {
+  return expectedDurationSec(typeId) * baseMultiplier * traitDeadlineMultiplier;
 }
 
 export function buildTasks(type: ProjectTypeData): Task[] {

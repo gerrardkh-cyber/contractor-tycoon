@@ -17,6 +17,8 @@ export class FakeNode {
   parent: FakeNode | null = null;
   /** What getBoundingClientRect reports. The spotlight measures its target. */
   rect = { left: 20, top: 20, width: 200, height: 60 };
+  /** How many times the guide asked for this node to be scrolled to. */
+  scrolledIntoView = 0;
 
   private text: string;
   private readonly classes = new Set<string>();
@@ -84,6 +86,11 @@ export class FakeNode {
 
   getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
     return this.rect;
+  }
+
+  /** Counted rather than performed: there is nothing here to scroll. */
+  scrollIntoView(): void {
+    this.scrolledIntoView += 1;
   }
 
   addEventListener(type: string, listener: Listener): void {

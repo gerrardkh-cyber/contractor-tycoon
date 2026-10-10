@@ -67,6 +67,8 @@
 
 - Lv1 예상 공기 = `145 + 60 × floors` (무실패 기준, 아래 §3.3 유도)
 - `deadline_sec = 예상 공기 × 1.5`, `schedule` 성향이면 추가로 `× 0.8`
+- **첫 지명 RFQ 만 `× 3.0`** (`bidding.firstRfq.deadlineMultiplier`). `house`·`price` 성향이므로
+  `265 × 3.0 = 795초`. 둘째 공고부터는 다시 `× 1.5` 다.
 
 | 타입 | schedule 성향 deadline |
 |---|---|
@@ -167,7 +169,8 @@ final 30
 | 교체 주기 | `90s` 마다 **가장 오래된 1칸** |
 | 낙찰·거절 시 | 해당 칸 **즉시 교체** |
 
-RFQ 필드: `type`, `P`(성향·검사관 보정 후), `client_trait`, `inspector`, `deadline_sec`, `advance_available`, `min_cash`
+RFQ 필드: `type`, `P`(성향·검사관 보정 후), `client_trait`, `inspector`, `deadline_sec`, `advance_available`, `min_cash`,
+`deadline_multiplier_override`(첫 지명 RFQ 에만 존재)
 
 ### 4.1.1 입찰 자격 (`min_cash`)
 

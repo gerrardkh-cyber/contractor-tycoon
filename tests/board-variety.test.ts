@@ -4,6 +4,8 @@ import {
   applyAction,
   createInitialState,
   data,
+  deadlineSecFor,
+  expectedDurationSec,
   isLifeline,
   minCashToBid,
   stageCost,
@@ -133,5 +135,56 @@ describe('the opening cash position', () => {
     const left = state.company.cash - minCashToBid('house');
     expect(left).toBeCloseTo(37_625, 6);
     expect(left).toBeGreaterThan(stageCost(project, 'mep'));
+  });
+});
+
+/**
+ * GDD 4.3: the opening named job runs on a longer clock, because a first
+ * build is read as much as it is played. It is the only posting that does,
+ * and the test below is what keeps it that way.
+ */
+describe('the opening job is given room to be read', () => {
+  function traitMultiplier(id: string): number {
+    return data.clientTraits.find((trait) => trait.id === id)?.deadlineMultiplier ?? 1;
+  }
+
+  it('gives the first named RFQ the override from the balance file', () => {
+    const first = createInitialState().board[0]!;
+    const override = balance.bidding.firstRfq.deadlineMultiplier;
+
+    expect(first.directAward).toBe(true);
+    expect(first.deadlineMultiplierOverride).toBe(override);
+    expect(first.deadlineSec).toBeCloseTo(
+      expectedDurationSec(first.typeId) * override * traitMultiplier(first.clientTrait),
+      6,
+    );
+    // Which is the standard deadline scaled by the two multipliers' ratio.
+    expect(first.deadlineSec).toBeCloseTo(
+      deadlineSecFor(first.typeId, traitMultiplier(first.clientTrait)) *
+        (override / balance.economy.deadlineMultiplier),
+      6,
+    );
+  });
+
+  it('leaves every other posting on the standard multiplier', () => {
+    const rng = seeded(31);
+    let state = createInitialState();
+    const openingId = state.board[0]!.id;
+    const seen = new Map<string, Rfq>();
+
+    for (let step = 0; step < 4000; step += 1) {
+      state = advance(state, 0.25, rng);
+      for (const rfq of state.board) seen.set(rfq.id, rfq);
+    }
+
+    const others = [...seen.values()].filter((rfq) => rfq.id !== openingId);
+    expect(others.length, 'the board never rotated').toBeGreaterThan(10);
+    for (const rfq of others) {
+      expect(rfq.deadlineMultiplierOverride, `${rfq.id} carries an override`).toBeUndefined();
+      expect(rfq.deadlineSec, `${rfq.id} deadline`).toBeCloseTo(
+        deadlineSecFor(rfq.typeId, traitMultiplier(rfq.clientTrait)),
+        6,
+      );
+    }
   });
 });
