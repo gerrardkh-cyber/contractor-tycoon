@@ -17,6 +17,7 @@ import { data, type GameState, type Project } from '../core';
 import { createActors, type Actors } from './actors';
 import { createBuildingView, geometryFor, type BuildingView } from './building';
 import { clear, el, svgEl, toggleClass } from './dom';
+import { motionAllowed } from './motion';
 import { renderSlotCard } from './site';
 import { theme } from './theme';
 import type { ArtSlot } from './theme';
@@ -195,6 +196,7 @@ export function createScene(host: SceneHost): Scene {
 
     for (const project of context.state.projects) {
       let plot = plots.get(project.id);
+      const fresh = plot === undefined;
       if (!plot) {
         plot = buildPlot(project);
         plots.set(project.id, plot);
@@ -204,6 +206,7 @@ export function createScene(host: SceneHost): Scene {
       plot.building.update(project, context.state);
       plot.actors.update(project, context.state);
       toggleClass(plot.node, 'is-selected', project.id === selected);
+      if (fresh && project.id === selected) bringIntoView(selected);
     }
 
     syncLots(context);
@@ -277,8 +280,20 @@ export function createScene(host: SceneHost): Scene {
     if (projectId === selected) return;
     selected = projectId;
     for (const [id, plot] of plots) toggleClass(plot.node, 'is-selected', id === projectId);
+    bringIntoView(projectId);
     if (!tell) return;
     for (const listener of listeners) listener(projectId);
+  }
+
+  /**
+   * On a narrow screen the row is wider than the window, and what the player
+   * is building should be what they are looking at.
+   */
+  function bringIntoView(projectId: string | null): void {
+    const plot = projectId === null ? null : plots.get(projectId);
+    if (!plot) return;
+    const left = plot.node.offsetLeft - (row.clientWidth - plot.node.offsetWidth) / 2;
+    row.scrollTo({ left: Math.max(0, left), behavior: motionAllowed() ? 'smooth' : 'auto' });
   }
 
   function pass(projectId: string, gateId: string): void {

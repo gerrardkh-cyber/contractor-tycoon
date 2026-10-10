@@ -758,6 +758,7 @@ html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
   .topbar .stat-label{font-size:${f.tiny}}
   .topbar .stat-value{font-size:${f.small}}
   .topbar-tools{margin-left:${s.gapTiny}px}
+  .topbar .stat.is-extra{display:none}
   .plot.is-empty .empty-lot{font-size:${f.tiny};padding:${s.gapSmall}px}
   .btn.small,.btn.icon-only,.tier{min-height:${s.touchTarget}px}
   .btn.icon-only{min-width:${s.touchTarget}px}

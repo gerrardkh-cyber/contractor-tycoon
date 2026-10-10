@@ -45,6 +45,9 @@ export function createTopBar(ctx: Ctx): TopBar {
   onSoundChange(() => refreshSoundLabel(soundButton));
 
   cash.node.setAttribute('data-guide', 'cash');
+  // Order 008 §1 names four chips. Net worth is the one beyond them, so it is
+  // the one a phone drops.
+  worth.node.classList.add('is-extra');
   const node = el('div', { class: 'topbar' }, [
     cash.node,
     debt.node,
