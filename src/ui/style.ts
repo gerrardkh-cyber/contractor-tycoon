@@ -11,12 +11,12 @@
 import { theme } from './theme';
 
 export function injectStyles(): void {
-  const css = [base(), building(), panels(), animations()].join('\n');
+  const css = [base(), scene(), building(), panels(), animations()].join('\n');
   document.head.append(Object.assign(document.createElement('style'), { textContent: css }));
 }
 
 function base(): string {
-  const { color: c, size: s, font: f, layout, motion: m, easing } = theme;
+  const { color: c, size: s, font: f, motion: m, easing } = theme;
   return `
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%}
@@ -24,13 +24,14 @@ body{
   background:${c.bg};color:${c.text};font-family:${f.stack};font-size:${f.body};
   -webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
-#app{max-width:${layout.maxWidth}px;margin:0 auto;padding:${s.gap}px;padding-bottom:${s.pageBottomPad}px}
+#app{min-height:100%;margin:0;padding:0}
+body{overflow:hidden}
 h1,h2,h3{margin:0;font-weight:600}
 button{font:inherit;color:inherit}
 
 /* Rain drains the colour out of the whole screen while it falls. */
 #app{transition:filter ${m.flashMs}ms ${easing.out}}
-#app.is-wet{filter:saturate(.55) brightness(.92)}
+#app.is-wet{filter:saturate(.6) brightness(.94)}
 
 .icon{
   width:${s.iconSize}px;height:${s.iconSize}px;flex:0 0 auto;
@@ -72,25 +73,274 @@ button{font:inherit;color:inherit}
   transition:transform ${m.tweenMsFast}ms ${easing.out};
 }
 
-.columns{display:grid;grid-template-columns:1fr;gap:${s.gap}px}
-@media(min-width:${layout.twoColumnMinWidth}px){.columns{grid-template-columns:1.15fr .85fr}}
-.sites{display:grid;grid-template-columns:1fr;gap:${s.gap}px}
-@media(min-width:${s.siteGridBreakpoint}px){.sites{grid-template-columns:repeat(auto-fit,minmax(${s.siteMinWidth}px,1fr))}}
 `;
 }
 
 /** The site drawing: floors, envelope, crane, weather, punch dots, badges. */
-function building(): string {
-  const { color: c, size: s, svg: v, font: f, motion: m, easing } = theme;
+/**
+ * The scene: sky, city, ground, the row of sites, the weather over all of it.
+ *
+ * Order 008. The whole thing is one fixed layer behind the interface, and the
+ * only numbers it needs are the ground line and the daylight phase - both set
+ * as custom properties so a phase change is a colour transition, not a redraw.
+ */
+function scene(): string {
+  const { color: c, size: s, font: f, motion: m, easing, scene: sc, daylight: d } = theme;
+  const phase = (id: keyof typeof d.morning extends never ? never : 'morning' | 'day' | 'evening' | 'night'): string => {
+    const p = d[id];
+    return `.scene[data-phase="${id}"]{
+  --sky-top:${p.skyTop};--sky-bottom:${p.skyBottom};--haze:${p.haze};
+  --ground-col:${p.ground};--window-lit:${p.windows};--shadow-x:${p.shadow};
+}`;
+  };
+
   return `
-.building{
-  display:block;width:100%;max-width:${s.canvasMaxWidth}px;min-width:${s.canvasMinWidth}px;
-  margin:0 auto;border-radius:${s.radiusSmall}px;background:${c.sky};overflow:hidden;
+.scene{
+  position:fixed;inset:0;z-index:0;overflow:hidden;
+  --ground:${(sc.groundRatio * 100).toFixed(1)}%;
+  transition:none;
+  --sky-top:${d.day.skyTop};--sky-bottom:${d.day.skyBottom};--haze:${d.day.haze};
+  --ground-col:${d.day.ground};--window-lit:${d.day.windows};--shadow-x:${d.day.shadow};
 }
-.bld-sky{fill:${c.sky};transition:fill ${m.flashMs}ms ${easing.out}}
-.building.is-raining .bld-sky{fill:${c.skyRain}}
-.bld-ground rect{fill:${c.ground}}
-.bld-ground-line{stroke:${c.groundLine}}
+${phase('morning')}
+${phase('day')}
+${phase('evening')}
+${phase('night')}
+
+.scene-sky{
+  position:absolute;left:0;right:0;top:0;height:var(--ground);
+  background:linear-gradient(180deg,var(--sky-top),var(--sky-bottom));
+  transition:background ${d.blendMs}ms ${easing.inOut};
+}
+.scene-sky::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,${c.transparent},var(--haze));
+  transition:background ${d.blendMs}ms ${easing.inOut};
+}
+.scene-skyline{
+  position:absolute;left:0;width:100%;bottom:calc(100% - var(--ground));
+  display:block;pointer-events:none;
+}
+.scene-skyline.is-far{height:${(sc.skylineFarHeight * 100).toFixed(0)}%;opacity:.35}
+.scene-skyline.is-near{height:${(sc.skylineNearHeight * 100).toFixed(0)}%;opacity:.55}
+.scene-skyline .skyline-block{fill:${c.panelSunk};stroke:${c.bg};stroke-width:.5}
+.scene-skyline.is-near .skyline-block{fill:${c.panelSunk}}
+.scene[data-phase="night"] .scene-skyline.is-far{opacity:.3}
+
+/* The site card opens under the scene, so the ground line comes up to meet
+   it rather than letting it cover the building it describes. */
+#app.has-detail .scene{
+  --ground:calc(100% - ${(sc.detailMaxRatio * 100).toFixed(1)}% - ${sc.tabBarHeight + sc.plotGapPx}px);
+}
+.scene-ground,.scene-row,.scene-skyline{
+  transition:top ${m.slideInMs * 2}ms ${easing.out},bottom ${m.slideInMs * 2}ms ${easing.out};
+}
+.scene-ground{
+  position:absolute;left:0;right:0;top:var(--ground);bottom:0;
+  background:linear-gradient(180deg,var(--ground-col),${c.bg});
+  border-top:${s.hairline * 2}px solid ${c.groundLine};
+  transition:background ${d.blendMs}ms ${easing.inOut};
+}
+.scene-ground::after{
+  content:'';position:absolute;left:0;right:0;top:0;height:${s.gap}px;
+  background:linear-gradient(180deg,${c.shadow},${c.transparent});opacity:.5;
+}
+
+.scene-row{
+  position:absolute;left:0;right:0;bottom:calc(100% - var(--ground));
+  display:flex;align-items:flex-end;justify-content:flex-start;gap:${sc.plotGapPx}px;
+  padding:0 ${sc.plotGapPx}px;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x proximity;scrollbar-width:none;
+}
+/* Centres the row when it fits and leaves the first site reachable when it
+   does not, which a centred justify-content would not. */
+.scene-row::before,.scene-row::after{content:'';flex:1 1 auto}
+.scene-row::-webkit-scrollbar{display:none}
+
+.plot{
+  position:relative;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:center;
+  scroll-snap-align:center;cursor:pointer;
+}
+.plot .building{display:block;width:100%;height:auto}
+.plot .actors{position:absolute;left:0;bottom:0;width:100%;height:100%;pointer-events:none}
+.plot::before{
+  content:'';position:absolute;bottom:0;left:50%;width:62%;height:${s.gapSmall}px;
+  border-radius:50%;background:${c.shadow};opacity:.55;
+  transform:translateX(calc(-50% + var(--shadow-x,0) * 22%)) scaleX(1.1);
+  transition:transform ${d.blendMs}ms ${easing.inOut};
+}
+.plot::after{
+  content:'';position:absolute;left:4%;right:4%;bottom:0;height:${s.hairline * 3}px;
+  background:${c.accent};opacity:0;transition:opacity ${m.flashMs}ms ${easing.out};
+}
+.plot.is-selected::after{opacity:.5}
+/* Handed over: the building stays long enough to be cheered, then goes. */
+.plot.is-leaving{pointer-events:none}
+.plot.is-leaving .actors{opacity:.6;transition:opacity ${m.slideInMs}ms ${easing.out}}
+
+.plot.is-empty{
+  flex-direction:column;align-items:center;justify-content:flex-end;gap:0;cursor:default;
+}
+.plot-fence{display:block;width:100%;height:${sc.fenceHeight}px;opacity:.8}
+.plot-fence .fence-post,.plot-fence .fence-rail{stroke:${c.steelDark}}
+.plot.is-empty .empty-lot{
+  width:100%;min-height:0;order:-1;margin-bottom:0;gap:${s.gapTiny}px;
+  padding:${s.padSmall}px;font-size:${f.small};
+  background:${c.panel};border:${s.hairline}px solid ${c.border};
+  border-bottom:0;border-radius:${s.radius}px ${s.radius}px 0 0;
+}
+.plot.is-empty .slot-title{font-size:${f.body}}
+.plot.is-empty .btn{padding:${s.gapTiny}px ${s.gapSmall}px}
+
+.scene-weather{
+  position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none;
+  transition:opacity ${m.flashMs * 2}ms ${easing.out};
+}
+.scene-weather line{stroke:${c.rain};opacity:.5}
+.scene.is-raining .scene-weather{opacity:1}
+.scene.is-raining .scene-sky{filter:saturate(.5) brightness(.75)}
+.scene.is-raining .scene-weather line{animation:rainfall ${m.rainMs}ms ${easing.linear} infinite}
+
+.scene-coins{position:absolute;inset:0;pointer-events:none}
+.coin{
+  position:absolute;width:${sc.coinRadius * 2}px;height:${sc.coinRadius * 2}px;border-radius:50%;
+  background:${c.accent};box-shadow:0 0 ${s.gapSmall}px ${c.accentGlow};
+  animation:coin-fly ${sc.coinFlightMs}ms ${easing.inOut} forwards;
+}
+
+/* ---- the crew ---------------------------------------------------- */
+.actors .actor-body line{stroke:${c.steel};stroke-width:1.1;stroke-linecap:round}
+.actors .actor-hat{fill:${c.accent}}
+.actors .actor-body .actor-arm{stroke:${c.steel}}
+.actors .actor-body .actor-torso{stroke:${c.blueprint}}
+.actors .actor-legs.is-b{opacity:0}
+.actors .actor-walk{
+  animation:walk-span 8s ${easing.inOut} infinite alternate;
+  --walk-span:${(sc.workerHeight * 2.4).toFixed(1)}px;
+}
+.actors .actor-legs.is-a{animation:frame-a ${sc.stepFrameMs * 2}ms steps(1) infinite}
+.actors .actor-legs.is-b{animation:frame-b ${sc.stepFrameMs * 2}ms steps(1) infinite}
+.actors.is-resting .actor-walk,
+.actors.is-resting .actor-legs{animation:none}
+.actors.is-resting .actor-legs.is-b{opacity:0}
+.actors.is-resting .worker .actor-body{transform:translateY(${sc.workerHeight * 0.35}px) scaleY(.72)}
+/* Rain: the crew runs for the site office at the left and goes inside. */
+.actors .worker{--to-hut:${(-sc.workerHeight * 4).toFixed(1)}px}
+.actors.is-sheltering .worker .actor-walk{
+  animation:none;transform:translateX(var(--to-hut,0));opacity:0;
+}
+.actors .worker .actor-walk{
+  transition:opacity ${m.slideInMs}ms ${easing.out},transform ${m.slideInMs * 2}ms ${easing.out};
+}
+.actors .actor-arm{transform-box:fill-box;transform-origin:center}
+.actors.is-cheering .actor-arm{transform:rotate(${sc.cheerArmDeg}deg)}
+/* Rubbing out a punch item: the arm works, the figure stays put. */
+.actors.is-fixing .is-climber .actor-walk{animation:none}
+.actors.is-fixing .is-climber .actor-arm{
+  animation:fix-arm ${sc.stepFrameMs * 2}ms ${easing.inOut} infinite alternate;
+}
+.actors .actor-hut .hut-body{fill:${c.panelRaised};stroke:${c.border}}
+.actors .actor-hut .hut-door{fill:${c.panelSunk}}
+.actors .actor-hut .hut-roof{stroke:${c.steel};stroke-width:1.2}
+
+.actors .actor-truck{opacity:0;transform:translateX(${theme.svg.width}px)}
+.actors .actor-truck.is-pouring{
+  animation:truck-visit calc(var(--truck-enter) + var(--truck-stay) + var(--truck-leave)) ${easing.inOut} forwards;
+}
+.actors .truck-cab,.actors .truck-bed{fill:${c.crane}}
+.actors .truck-drum{fill:${c.concreteLit};stroke:${c.steelDark};stroke-width:.8}
+.actors .truck-wheel{fill:${c.panelSunk};stroke:${c.steelDark};stroke-width:.8}
+
+.actors .actor-inspector{opacity:0}
+.actors .actor-inspector.is-visiting{
+  animation:inspector-visit calc(var(--walk-ms) * 2 + var(--stay-ms)) ${easing.inOut} forwards;
+}
+.actors .inspector-board{fill:${c.panel};stroke:${c.textDim};stroke-width:.7}
+.actors .inspector-bubble{opacity:0;transform-box:fill-box;transform-origin:center}
+.actors .actor-inspector.is-visiting .inspector-bubble{
+  animation:bubble-pop calc(var(--walk-ms) * 2 + var(--stay-ms)) ${easing.out} forwards;
+}
+.actors .bubble-disc{fill:${c.panel};stroke:${c.border};stroke-width:.8}
+.actors .bubble-mark{fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.actors .is-pass .bubble-disc{stroke:${c.good}}
+.actors .is-pass .bubble-mark{stroke:${c.good}}
+.actors .is-fail .bubble-disc{stroke:${c.bad}}
+.actors .is-fail .bubble-mark{stroke:${c.bad}}
+
+/* ---- what floats over the scene ---------------------------------- */
+.topbar{
+  position:fixed;left:0;right:0;top:0;z-index:30;
+  display:flex;flex-wrap:wrap;align-items:center;gap:${sc.hudChipGap}px;
+  padding:${sc.hudPadY}px ${sc.hudPadX}px;margin:0;border:0;border-radius:0;
+  background:linear-gradient(180deg,${c.scrim},${c.transparent});
+}
+.topbar .stat{
+  flex:0 0 auto;flex-direction:row;align-items:baseline;gap:${s.gapSmall}px;
+  background:${c.overlay};border:${s.hairline}px solid ${c.border};
+  border-radius:${s.radiusPill}px;padding:${sc.hudPadY}px ${sc.hudPadX}px;
+}
+.topbar .stat-label{text-transform:none;letter-spacing:0}
+.topbar .stat-value{font-size:${f.body}}
+.topbar .bar{display:none}
+.topbar-tools{margin-left:auto}
+
+.detail-host{
+  max-height:${(sc.detailMaxRatio * 100).toFixed(0)}vh;
+  padding:0 ${s.gapSmall}px ${s.gapSmall}px;overflow:auto;pointer-events:none;
+  transition:max-height ${m.slideInMs * 2}ms ${easing.out};
+}
+.detail-host > *{pointer-events:auto;max-width:${theme.layout.maxWidth}px;margin:0 auto}
+/* With a drawer open the card gives way, but it never disappears: the rain
+   decision and the punch list live in it. */
+.drawers.is-open .detail-host{
+  max-height:${(sc.detailMaxRatio * sc.detailOpenRatio * 100).toFixed(1)}vh;
+}
+.detail-host .site-card{
+  background:${c.scrim};border-color:${c.borderBright};
+  box-shadow:0 ${s.gapSmall}px ${s.gap}px ${c.shadow};
+}
+#app.drawer-open .scene-row{opacity:.85}
+
+/* ---- drawers ------------------------------------------------------ *
+ * Order 008 §1: an open drawer never takes the top of the scene. The sheet
+ * gets what is left once the scene's share, the tab bar and the site card
+ * have had theirs.
+ */
+.drawers{
+  position:fixed;left:0;right:0;bottom:0;z-index:25;
+  display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;
+}
+.drawers > *{pointer-events:auto}
+.drawer-sheet{
+  max-height:0;overflow:hidden;background:${c.scrim};
+  border-top:${s.hairline}px solid ${c.border};
+  transition:max-height ${m.slideInMs * 2}ms ${easing.out};
+  /* Clipped is not closed: without this the board inside a shut drawer is
+     still clickable and still in the tab order. */
+  visibility:hidden;
+}
+.drawers.is-open .drawer-sheet{max-height:var(--drawer-max);overflow:auto;visibility:visible}
+.drawer-panel{display:none;padding:${s.gapSmall}px;margin:0 auto;max-width:${theme.layout.maxWidth}px}
+.drawer-panel.is-shown{display:block}
+.tab-bar{
+  display:flex;align-items:stretch;height:${sc.tabBarHeight}px;
+  background:${c.panelRaised};border-top:${s.hairline}px solid ${c.border};
+}
+.tab{
+  flex:1 1 0;border:0;background:${c.transparent};color:${c.textDim};
+  font-size:${f.small};font-weight:600;cursor:pointer;
+  border-top:${s.hairline * 2}px solid ${c.transparent};
+  transition:color ${m.flashMs}ms ${easing.out},background ${m.flashMs}ms ${easing.out};
+}
+.tab:hover{color:${c.text};background:${c.panel}}
+.tab.is-on{color:${c.accent};border-top-color:${c.accent};background:${c.panel}}
+`;
+}
+
+function building(): string {
+  const { color: c, svg: v, font: f, motion: m, easing } = theme;
+  return `
+.building{display:block;overflow:visible}
 
 /* Foundation, envelope and roof each report their own stage. */
 .bld-foundation{fill:${c.panelSunk};stroke:${c.steelDark};stroke-width:${v.wallStroke}}
@@ -159,6 +409,28 @@ function building(): string {
 .bld-rain.is-on{opacity:1}
 .bld-rain line{stroke:${c.rain}}
 .bld-rain.is-on line{animation:rainfall ${m.rainMs}ms ${easing.linear} infinite}
+
+/* Topped out: the flag goes up and stays up. */
+.bld-flag{opacity:0;transition:opacity ${m.slideInMs}ms ${easing.out}}
+.building.is-topped-out .bld-flag{opacity:1}
+.bld-flag .flag-pole{stroke:${c.steel}}
+.bld-flag .flag-cloth{fill:${c.accent}}
+.bld-flash{fill:${c.text};opacity:0;pointer-events:none}
+.building.is-celebrating .bld-flash{animation:celebrate ${theme.scene.celebrateMs}ms ${easing.out}}
+
+/* A gate failed: the floor it was on blinks. */
+.bld-floor.is-failing .floor-grid,
+.bld-floor.is-failing .floor-gate,
+.bld-floor.is-failing .floor-wall-face{stroke:${c.bad}}
+.bld-floor.is-failing,
+.bld-envelope.is-failing{
+  animation:blink ${m.blinkFastMs}ms ${easing.inOut} ${theme.scene.failBlinks};
+}
+
+/* After dark the finished floors are lived in, and the crane shows a light. */
+.scene[data-phase="night"] .bld-floor.is-done .floor-window,
+.scene[data-phase="evening"] .bld-floor.is-done .floor-window{fill:var(--window-lit)}
+.scene[data-phase="night"] .crane-cab{animation:blink ${m.blinkMs * 2}ms ${easing.inOut} infinite}
 
 .punch-dot{fill:${c.warn};stroke:${c.bg};stroke-width:${v.wallStroke}}
 .punch-dot.is-new{transform-box:fill-box;transform-origin:center;animation:punch-pop ${m.punchPopMs}ms ${easing.bounce}}
@@ -323,7 +595,8 @@ details>summary::-webkit-details-marker{display:none}
 .site-card{position:relative}
 
 .toasts{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:${s.toastOffset}px;z-index:40;
+  position:fixed;left:50%;transform:translateX(-50%);z-index:40;
+  bottom:calc(${theme.scene.tabBarHeight}px + ${s.toastOffset}px);
   display:flex;flex-direction:column;gap:${s.gapSmall}px;
   width:min(${s.panelMaxWidth}px,calc(100vw - ${s.gap * 2}px));
 }
@@ -395,8 +668,11 @@ details>summary::-webkit-details-marker{display:none}
 }
 
 /* What the guide hides while the first job is the whole game. */
-html.guide-first-job .empty-lot{display:none}
+html.guide-first-job .plot.is-empty{display:none}
 html.guide-hide-company .company-panel{display:none}
+/* A tab that opens onto something hidden is worse than no tab at all. */
+html.guide-hide-company .tab[data-guide="tab-company"]{display:none}
+html.guide-first-job .tab[data-guide="tab-log"]{display:none}
 html.guide-first-job .log-list{max-height:0;overflow:hidden}
 html.guide-first-job details>summary{pointer-events:none;opacity:.5}
 html.guide-only-named .rfq:not(.named){display:none}
@@ -475,13 +751,20 @@ html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
   .btn.icon-only{min-width:${s.touchTarget}px}
 }
 @media(max-width:${layout.mobileWidth}px){
+  /* The HUD gives the scene its height back: smaller chips, and the tools
+     flow with them instead of claiming a row of their own. */
+  .topbar{gap:${s.gapTiny}px;padding:${s.gapTiny}px ${s.gapSmall}px}
+  .topbar .stat{padding:${s.gapTiny}px ${s.gapSmall}px;gap:${s.gapTiny}px}
+  .topbar .stat-label{font-size:${f.tiny}}
+  .topbar .stat-value{font-size:${f.small}}
+  .topbar-tools{margin-left:${s.gapTiny}px}
+  .plot.is-empty .empty-lot{font-size:${f.tiny};padding:${s.gapSmall}px}
   .btn.small,.btn.icon-only,.tier{min-height:${s.touchTarget}px}
   .btn.icon-only{min-width:${s.touchTarget}px}
   #app{padding:${s.gapSmall}px;padding-bottom:${s.pageBottomPad}px}
   .panel{padding:${s.padSmall}px}
   .site-grid{grid-template-columns:1fr 1fr}
   .title-name{font-size:${f.huge}}
-  .topbar{padding:${s.padSmall}px;gap:${s.gapSmall}px}
 }
 `;
 }
@@ -491,7 +774,18 @@ html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
  * The block at the end is the master off switch.
  */
 function animations(): string {
-  const { size: s, svg: v, motion: m } = theme;
+  const { size: s, svg: v, motion: m, scene: sc } = theme;
+  // The visit animations are one keyframe set each; where their stops fall is
+  // worked out from the timings rather than written in twice.
+  const truckTotal = sc.truckEnterMs + sc.truckStayMs + sc.truckLeaveMs;
+  const truckIn = ((sc.truckEnterMs / truckTotal) * 100).toFixed(1);
+  const truckOut = (((sc.truckEnterMs + sc.truckStayMs) / truckTotal) * 100).toFixed(1);
+  // The reversing step: a short back-up before it drives off.
+  const truckBack = (((sc.truckEnterMs + sc.truckStayMs + sc.truckLeaveMs * 0.45) / truckTotal) * 100).toFixed(1);
+  const visitTotal = sc.inspectorWalkMs * 2 + sc.inspectorStayMs;
+  const walkIn = ((sc.inspectorWalkMs / visitTotal) * 100).toFixed(1);
+  const walkOut = (((sc.inspectorWalkMs + sc.inspectorStayMs) / visitTotal) * 100).toFixed(1);
+  const bubbleIn = (((sc.inspectorWalkMs * 1.2) / visitTotal) * 100).toFixed(1);
   return `
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes sweep{to{transform:translateX(100%)}}
@@ -543,6 +837,41 @@ function animations(): string {
   75%{transform:scaleX(.08)}
   100%{transform:scaleX(1)}
 }
+@keyframes walk-span{from{transform:translateX(0)}to{transform:translateX(var(--walk-span,0))}}
+@keyframes frame-a{0%,49.9%{opacity:1}50%,100%{opacity:0}}
+@keyframes fix-arm{from{transform:rotate(-18deg)}to{transform:rotate(14deg)}}
+@keyframes frame-b{0%,49.9%{opacity:0}50%,100%{opacity:1}}
+@keyframes celebrate{
+  0%{opacity:0}
+  20%{opacity:${theme.scene.flashOpacity}}
+  100%{opacity:0}
+}
+@keyframes coin-fly{
+  0%{transform:translate(0,0) scale(.5);opacity:0}
+  12%{opacity:1;transform:translate(0,-${s.gap}px) scale(1)}
+  100%{transform:translate(var(--fly-x,0),var(--fly-y,0)) scale(.45);opacity:0}
+}
+@keyframes truck-visit{
+  0%{opacity:0;transform:translateX(var(--truck-from,0))}
+  6%{opacity:1}
+  ${truckIn}%{transform:translateX(var(--truck-stop,0))}
+  ${truckOut}%{opacity:1;transform:translateX(var(--truck-stop,0))}
+  ${truckBack}%{transform:translateX(var(--truck-back,0))}
+  100%{opacity:0;transform:translateX(var(--truck-from,0))}
+}
+@keyframes inspector-visit{
+  0%{opacity:0;transform:translateX(0)}
+  6%{opacity:1}
+  ${walkIn}%{transform:translateX(var(--walk-to,0))}
+  ${walkOut}%{opacity:1;transform:translateX(var(--walk-to,0))}
+  100%{opacity:0;transform:translateX(0)}
+}
+@keyframes bubble-pop{
+  0%,${walkIn}%{opacity:0;transform:scale(.4)}
+  ${bubbleIn}%{opacity:1;transform:scale(1)}
+  ${walkOut}%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(.8)}
+}
 @keyframes crane-sway{0%,100%{transform:rotate(-2.2deg)}50%{transform:rotate(2.2deg)}}
 @keyframes crane-lift{
   0%,100%{transform:translateY(0)}
@@ -567,12 +896,15 @@ html.no-motion *,html.no-motion *::before,html.no-motion *::after{
   transition-duration:1ms !important;
   scroll-behavior:auto !important;
 }
-html.no-motion .bld-rain,html.no-motion .title-crane{opacity:.75}
+html.no-motion .scene-weather,html.no-motion .title-crane{opacity:.75}
 html.no-motion .bld-floor.is-structureGate .floor-gate,
 html.no-motion .bld-floor.is-servicesGate .floor-gate{opacity:1}
 
 /* Degraded only: keep the game legible, drop the continuous decoration. */
-html.degraded .bld-rain{display:none}
+html.degraded .scene-weather{display:none}
+html.degraded .actors .actor-walk,
+html.degraded .actors .actor-legs{animation:none}
+html.degraded .scene-skyline.is-far{display:none}
 html.degraded .bld-crane .crane-load{opacity:.45}
 `;
 }

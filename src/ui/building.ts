@@ -1,12 +1,17 @@
-// The site, drawn in section: ground line, foundation, floors, roof, and a
-// tower crane standing beside it.
+// One building, drawn in section: foundation, floors, roof, and a tower crane
+// standing beside it.
 //
 // Everything is inline SVG built from theme.svg geometry. The view is created
-// once per site and then patched in place: floors change class, the crane and
-// the rain run as CSS animations, and nothing is torn down between frames.
+// once per site and then patched in place: floors change class, the crane runs
+// as a CSS animation, and nothing is torn down between frames.
+//
+// Order 008 moved the sky, the ground and the weather out to the scene, which
+// draws them once behind every site. Floors are one tile height for every
+// project, so a house and an eight-storey block stack the same unit and a
+// single scale factor sizes them both against the same ground line.
 
 import { findTask, stageDurationSec, type GameState, type Project } from '../core';
-import { clear, setAttr, svgEl, toggleClass } from './dom';
+import { clear, replayAnimation, setAttr, svgEl, toggleClass } from './dom';
 import { theme } from './theme';
 
 export type FloorState =
@@ -23,6 +28,8 @@ export interface Geometry {
   width: number;
   height: number;
   groundLevel: number;
+  /** Foundation to parapet: what "an eight-storey block" means on screen. */
+  structureHeight: number;
   floorHeight: number;
   bodyLeft: number;
   bodyRight: number;
@@ -55,29 +62,25 @@ export function bandStateOf(project: Project, stageId: string): BandState {
 }
 
 /**
- * Lays out one project. Floor height shrinks as the block grows so an
- * eight-storey tower stays on the same sheet as a house, and the drawing is
- * only ever as tall as what it has to hold.
+ * Lays out one project. Every floor is the same tile, so the drawing is as
+ * tall as the building actually is and the scene can scale them against one
+ * another. The sheet ends at the ground line: what is below it belongs to the
+ * scene, not to any one site.
  */
 export function geometryFor(floors: number): Geometry {
   const s = theme.svg;
-  // Three floors is the reference block: shorter ones get taller storeys so a
-  // house still reads as a building, taller ones get squatter ones so eight
-  // storeys fit the same sheet.
-  const floorHeight = Math.max(
-    s.minFloorHeight,
-    Math.min(s.maxFloorHeight, s.floorHeight + (3 - floors) * s.floorHeightBonus),
-  );
+  const floorHeight = s.floorHeight;
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
   const structureHeight = s.foundationHeight + bodyHeight + s.roofHeight + s.parapetHeight;
   const mastHeight = Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
-  const height = Math.round(s.topPad + mastHeight + s.groundY);
-  const groundLevel = height - s.groundY;
+  const height = Math.round(s.topPad + mastHeight);
+  const groundLevel = height;
 
   return {
     width: s.width,
     height,
     groundLevel,
+    structureHeight,
     floorHeight,
     bodyLeft: s.bodyLeft,
     bodyRight: s.bodyRight,
@@ -89,12 +92,6 @@ export function geometryFor(floors: number): Geometry {
   };
 }
 
-/** The on-screen height a site card should reserve, in CSS pixels. */
-export function heightForWidth(floors: number, widthPx: number): number {
-  const geometry = geometryFor(floors);
-  return Math.round((geometry.height / geometry.width) * widthPx);
-}
-
 interface FloorParts {
   group: SVGGElement;
   steel: SVGGElement;
@@ -104,9 +101,15 @@ interface FloorParts {
 
 export interface BuildingView {
   node: SVGSVGElement;
+  /** Where this building's parts sit, for anything drawn against it. */
+  geometry: Geometry;
   update(project: Project, state: GameState): void;
   /** Pops a green tick over the part that just passed. */
   markPass(stageId: string): void;
+  /** Blinks the floor a gate just failed on. */
+  markFail(floor: number | null): void;
+  /** Handover: flash, and raise the flag. */
+  celebrate(): void;
   dispose(): void;
 }
 
@@ -121,8 +124,6 @@ export function createBuildingView(floors: number): BuildingView {
     role: 'img',
   });
   svg.style.aspectRatio = `${g.width} / ${g.height}`;
-
-  svg.append(sky(g), ground(g));
 
   const foundation = svgEl('rect', {
     class: 'bld-foundation',
@@ -155,18 +156,30 @@ export function createBuildingView(floors: number): BuildingView {
   const roof = buildRoof(g);
   svg.append(roof.group);
 
+  // Topped out: the flag goes up at handover and stays up.
+  const flag = buildFlag(g);
+  svg.append(flag);
+
   const punchLayer = svgEl('g', { class: 'bld-punch' });
   svg.append(punchLayer);
 
   const crane = buildCrane(g);
   svg.append(crane.group);
-
-  // Rain falls in front of the site, over everything but the pass badges.
-  const rainLayer = rain(g);
-  svg.append(rainLayer);
+  let liftedFloor: number | null = null;
 
   const badgeLayer = svgEl('g', { class: 'bld-badges' });
   svg.append(badgeLayer);
+
+  // Handover: a sheet of light over the building, which is an opacity rather
+  // than a filter on the whole drawing.
+  const flash = svgEl('rect', {
+    class: 'bld-flash',
+    x: g.bodyLeft - s.envelopeInset,
+    y: g.roofTop,
+    width: g.bodyWidth + s.envelopeInset * 2,
+    height: g.groundLevel - g.roofTop,
+  });
+  svg.append(flash);
 
   let punchShown = -1;
   let raining: boolean | null = null;
@@ -189,7 +202,6 @@ export function createBuildingView(floors: number): BuildingView {
     if (wet !== raining) {
       raining = wet;
       toggleClass(svg, 'is-raining', wet);
-      toggleClass(rainLayer, 'is-on', wet);
     }
 
     // The crane only works while there is framing to lift for.
@@ -207,10 +219,49 @@ export function createBuildingView(floors: number): BuildingView {
       toggleClass(crane.group, 'is-idle', !working);
     }
 
+    // The hook rides up to whichever floor is being framed.
+    const framing = project.tasks.find(
+      (task) =>
+        task.stageId === 'structural' &&
+        task.floor !== null &&
+        (task.status === 'working' || task.status === 'rework'),
+    );
+    const target = working && framing ? framing.floor : null;
+    if (target !== liftedFloor) {
+      liftedFloor = target;
+      const rest = crane.restY;
+      const to = target === null ? rest : floorTopOf(g, target);
+      crane.lift.style.transform = `translateY(${(to - rest).toFixed(1)}px)`;
+    }
+
     if (project.punchOpen !== punchShown) {
       renderPunch(punchLayer, g, project.punchOpen, punchShown);
       punchShown = project.punchOpen;
     }
+  }
+
+  /** Handover: the whole building flashes and the flag goes up. */
+  function celebrate(): void {
+    svg.classList.add('is-topped-out');
+    replayAnimation(svg, 'is-celebrating');
+    const timer = globalThis.setTimeout(
+      () => svg.classList.remove('is-celebrating'),
+      theme.scene.celebrateMs,
+    );
+    badgeTimers.push(timer);
+  }
+
+  /** A gate failed: the floor it belongs to blinks red. */
+  function markFail(floor: number | null): void {
+    const parts = floor === null ? null : floorParts[floor];
+    const node = parts ? parts.group : envelope;
+    replayAnimation(node, 'is-failing');
+    // Long enough for all three blinks the stylesheet asks for.
+    const timer = globalThis.setTimeout(
+      () => node.classList.remove('is-failing'),
+      theme.motion.blinkFastMs * theme.scene.failBlinks,
+    );
+    badgeTimers.push(timer);
   }
 
   function markPass(stageId: string): void {
@@ -230,62 +281,42 @@ export function createBuildingView(floors: number): BuildingView {
     clear(badgeLayer);
   }
 
-  return { node: svg, update, markPass, dispose };
+  return { node: svg, geometry: g, update, markPass, markFail, celebrate, dispose };
 }
 
 // ---- pieces ---------------------------------------------------------------
 
-function sky(g: Geometry): SVGElement {
-  return svgEl('rect', { class: 'bld-sky', x: 0, y: 0, width: g.width, height: g.height });
+/** The top edge of a floor, in viewBox units. */
+export function floorTopOf(g: Geometry, floor: number): number {
+  return g.foundationTop - (floor + 1) * g.floorHeight - floor * theme.svg.floorGap;
 }
 
-function ground(g: Geometry): SVGElement {
-  const s = theme.svg;
-  return svgEl('g', { class: 'bld-ground' }, [
-    svgEl('rect', {
-      x: 0,
-      y: g.groundLevel,
-      width: g.width,
-      height: g.height - g.groundLevel,
-    }),
+function buildFlag(g: Geometry): SVGGElement {
+  const s = theme.scene;
+  const group = svgEl('g', { class: 'bld-flag' });
+  const x = g.bodyLeft + g.bodyWidth / 2;
+  const base = g.roofTop;
+  group.append(
     svgEl('line', {
-      class: 'bld-ground-line',
-      x1: 0,
-      y1: g.groundLevel,
-      x2: g.width,
-      y2: g.groundLevel,
-      'stroke-width': s.groundStroke,
-    }),
-  ]);
-}
-
-function rain(g: Geometry): SVGGElement {
-  const s = theme.svg;
-  const layer = svgEl('g', { class: 'bld-rain' });
-
-  // Drops are spread across the sheet and down it, each starting at a
-  // different point in the fall, so the rain covers the whole drawing rather
-  // than a band at the top.
-  for (let i = 0; i < s.rainDrops; i += 1) {
-    const x = (((i * 7) % s.rainDrops) + 0.5) * (g.width / s.rainDrops);
-    const y = (((i * 5) % s.rainDrops) / s.rainDrops) * g.height;
-    const drop = svgEl('line', {
+      class: 'flag-pole',
       x1: x,
-      y1: y,
-      x2: x - s.rainLength / 2,
-      y2: y + s.rainLength,
-      'stroke-width': s.rainStroke,
-    });
-    const delay = (((i * 3) % s.rainDrops) / s.rainDrops) * theme.motion.rainMs;
-    drop.style.animationDelay = `${delay.toFixed(0)}ms`;
-    layer.append(drop);
-  }
-  return layer;
+      y1: base,
+      x2: x,
+      y2: base - s.flagPoleHeight,
+      'stroke-width': theme.svg.wallStroke,
+    }),
+    svgEl('path', {
+      class: 'flag-cloth',
+      d: `M ${x} ${base - s.flagPoleHeight} h ${s.flagWidth} l ${-s.flagWidth / 3} ${s.flagHeight / 2}` +
+        ` l ${s.flagWidth / 3} ${s.flagHeight / 2} h ${-s.flagWidth} z`,
+    }),
+  );
+  return group;
 }
 
 function buildFloor(g: Geometry, floor: number): FloorParts {
   const s = theme.svg;
-  const y = g.foundationTop - (floor + 1) * g.floorHeight - floor * s.floorGap;
+  const y = floorTopOf(g, floor);
   const group = svgEl('g', { class: 'bld-floor', 'data-floor': floor });
 
   // Not started: an empty grid, the way an unbuilt floor reads on a drawing.
@@ -462,7 +493,7 @@ function setBandClass(node: SVGElement, base: string, state: BandState): void {
   setAttr(node, 'class', `${base} is-${state}`);
 }
 
-function buildCrane(g: Geometry): { group: SVGGElement } {
+function buildCrane(g: Geometry): { group: SVGGElement; lift: SVGGElement; restY: number } {
   const s = theme.svg;
   const group = svgEl('g', { class: 'bld-crane is-idle' });
   const x = s.craneX;
@@ -552,6 +583,8 @@ function buildCrane(g: Geometry): { group: SVGGElement } {
 
   // Hoist: the cable and its load swing from the trolley.
   const hoistX = x - s.jibLength * s.hookTrolleyTo;
+  // Two groups: the inner one swings, the outer one rides up to a floor.
+  const lift = svgEl('g', { class: 'crane-lift' });
   const hoist = svgEl('g', { class: 'crane-hoist' });
   hoist.style.transformOrigin = `${hoistX}px ${top}px`;
   const hookDrop = Math.max(s.craneMinHeight / 3, (g.groundLevel - top) * 0.45);
@@ -572,10 +605,11 @@ function buildCrane(g: Geometry): { group: SVGGElement } {
       height: s.hookSize,
     }),
   );
-  slew.append(hoist);
+  lift.append(hoist);
+  slew.append(lift);
   group.append(slew);
 
-  return { group };
+  return { group, lift, restY: top + hookDrop };
 }
 
 function renderPunch(layer: SVGGElement, g: Geometry, open: number, previous: number): void {

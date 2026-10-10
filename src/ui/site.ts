@@ -1,9 +1,12 @@
-// One site card: the drawing, its numbers, why it is stopped, the punch list,
-// the rain decision and the walk-off button.
+// One site's details: its numbers, why it is stopped, the punch list, the
+// rain decision and the walk-off button.
 //
-// The card is built once and then patched. Nothing is torn down between
-// frames, so the crane keeps turning, a floor can rise into place, and a
-// payment can lift off the card that earned it.
+// Order 008 moved the drawing itself out to the scene, where the building is
+// the screen. What is left here is everything the player reads rather than
+// watches, and it opens under the scene for whichever site is selected.
+//
+// The card is built once and then patched, so nothing is torn down between
+// frames and a payment can lift off the card that earned it.
 
 import {
   data,
@@ -29,7 +32,6 @@ import {
   withIcon,
 } from './dom';
 import { duration, money, moneySigned, percent } from './format';
-import { createBuildingView } from './building';
 import { inspectorIcon, traitIcon } from './icons';
 import { infoDot, labelWithTip } from './tooltip';
 import { play } from './sound';
@@ -57,8 +59,6 @@ export interface SiteCard {
   node: HTMLElement;
   readonly projectId: string;
   update(ctx: Ctx, project: Project): void;
-  /** A gate passed: pop a tick over the part it belongs to. */
-  pass(gateId: string): void;
   /** A gate failed: shake the card and flash its edge. */
   fail(): void;
   /** Money landed: float the figure off the card. */
@@ -68,7 +68,6 @@ export interface SiteCard {
 
 export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
   const type = data.requireProjectType(project.typeId);
-  const view = createBuildingView(type.floors);
 
   const stageLabel = el('span', { class: 'site-sub' });
   const progressLabel = el('span', { class: 'site-sub' });
@@ -91,9 +90,11 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
       el('span', { class: 'site-type', text: typeName(type.id) }),
       el('span', { class: 'site-sub', text: strings.site.floors(type.floors) }),
     ]),
-    view.node,
     el('div', { class: 'site-head', 'data-guide': 'site-progress' }, [stageLabel, progressLabel]),
     progressBar,
+    noteSlot,
+    decisionSlot,
+    punchSlot,
     el('div', { class: 'site-grid' }, [
       contract,
       paid,
@@ -120,9 +121,6 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
         ),
       ]),
     ]),
-    noteSlot,
-    decisionSlot,
-    punchSlot,
     el('div', { class: 'footer-bar' }, [
       el('span', { class: 'legend' }, [
         legendSwatch(theme.color.rebar, strings.floorState.structure),
@@ -141,8 +139,6 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
   let punchKey = '';
 
   function update(context: Ctx, current: Project): void {
-    view.update(current, context.state);
-
     const task = activeTask(current);
     setText(stageLabel, task ? stageName(task.stageId) : '');
     setText(progressLabel, percent(progressOf(current)));
@@ -223,10 +219,6 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
     punchSlot.append(punchBlock(context, current, blocking));
   }
 
-  function pass(gateId: string): void {
-    view.markPass(gateId);
-  }
-
   function fail(): void {
     replayAnimation(node, 'is-failed');
   }
@@ -238,10 +230,12 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
   }
 
   function dispose(): void {
-    view.dispose();
+    clear(noteSlot);
+    clear(decisionSlot);
+    clear(punchSlot);
   }
 
-  return { node, projectId: project.id, update, pass, fail, payment, dispose };
+  return { node, projectId: project.id, update, fail, payment, dispose };
 }
 
 /** Marks a node so the guided tour can find it. */

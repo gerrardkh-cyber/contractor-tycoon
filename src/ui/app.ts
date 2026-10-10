@@ -6,13 +6,15 @@
 // Panels are built once and patched every frame. That is what lets a floor
 // rise into place, a payment lift off its card and the crane keep turning:
 // nothing on screen is thrown away between frames.
+//
+// Order 008 made the site the screen. The scene fills the window, the HUD
+// floats over it, the selected site's numbers open beneath it, and the board,
+// the company and the log are drawers along the bottom.
 
 import {
   advance,
   applyAction,
-  data,
   isLifeline,
-  nextSiteSlotCost,
   type Action,
   type GameEvent,
   type GameState,
@@ -28,26 +30,20 @@ import { injectStyles } from './style';
 import { createBoard, type BidResult } from './board';
 import { createCompanyPanel } from './company';
 import { createLog } from './log';
-import { createSiteCard, renderSlotCard, type SiteCard } from './site';
+import { createSiteCard, type SiteCard } from './site';
+import { createScene, type Scene } from './scene';
+import { createDrawers, type DrawerId, type Drawers } from './drawers';
 import { createTopBar } from './topbar';
 import { createSkeleton, createTitleScreen } from './title';
 import { createTutorial, markTutorialSeen, type TargetName, type Tutorial } from './tutorial';
-import {
-  abandonDialog,
-  defectLine,
-  GUIDE_TOAST_SELECTOR,
-  offlineDialog,
-  settingsDialog,
-  Toasts,
-} from './overlays';
+import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
+import { TARGET_DRAWER, TARGET_SELECTOR } from './targets';
 import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
 
 const STEP_SEC = 0.1;
 const HINT_KEY = 'contractor-tycoon:hint';
-/** Slot cards only redraw when the shortfall moves by this much. */
-const SLOT_SHORTFALL_STEP = 1000;
 
 export function mount(root: HTMLElement): void {
   injectStyles();
@@ -155,45 +151,70 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   };
 
   let topbar = createTopBar(ctx);
-  let sites = el('div', { class: 'sites' });
   let board = createBoard();
   let company = createCompanyPanel(ctx);
   let logPanel = createLog();
 
+  /** Where the selected site's numbers open, under the scene. */
+  const detail = el('div', { class: 'detail-host' });
+
+  // The scene outlives a language change: it has no words of its own beyond
+  // the lot signs, which it redraws on request.
+  const scene: Scene = createScene({
+    cashAnchor: () => document.querySelector('[data-guide="cash"]'),
+  });
+  scene.onSelect(() => render());
+
+  let drawers: Drawers = createDrawers(
+    { bid: board.node, company: company.node, log: logPanel.node },
+    detail,
+  );
+  drawers.onChange(onDrawerChange);
+
+  /** An open drawer leaves the site's numbers less room, not none. */
+  function onDrawerChange(id: DrawerId | null): void {
+    toggleClass(root, 'drawer-open', id !== null);
+    if (id === null) guideOpened = null;
+  }
+
+  /**
+   * Which drawer the guide opened for the step it is on. The next step that
+   * wants something else closes it again, so the guide never leaves a panel
+   * standing over the site.
+   */
+  let guideOpened: DrawerId | null = null;
+
   /** One card per running site, kept across frames and keyed by project id. */
   let siteCards = new Map<string, SiteCard>();
-  let slotKey = '';
 
   /**
    * Where each guided step points. Kept here because app.ts is the only place
    * that knows the whole screen; the guide itself knows nothing about layout.
    */
   function findTarget(what: TargetName): Element | null {
-    const q = (sel: string): Element | null => document.querySelector(sel);
-    switch (what) {
-      case 'namedCard': return q('[data-guide="named-card"]');
-      case 'siteProgress': return q('[data-guide="site-progress"]');
-      case 'cash': return q('[data-guide="cash"]');
-      case 'toast': return q(GUIDE_TOAST_SELECTOR);
-      case 'rainChoice': return q('[data-guide="rain-choice"]');
-      case 'punchButton': return q('[data-guide="punch-button"]');
-      case 'siteCard': return q('[data-guide="site-card"]');
-      case 'tierButtons': return q('[data-guide="tier-buttons"]');
-      case 'subcontractors': return q('[data-guide="subcontractors"]');
-      default: return null;
+    const drawer = TARGET_DRAWER[what];
+    // Order 008 §5: a step whose target is in a closed drawer opens it, and
+    // the next step that wants something else puts it back.
+    if (drawer === undefined) closeGuideDrawer();
+    const node = document.querySelector(TARGET_SELECTOR[what]);
+    if (!node) return null;
+    if (drawer !== undefined && drawers.openId() !== drawer) {
+      drawers.open(drawer);
+      guideOpened = drawer;
     }
+    return node;
+  }
+
+  /** Puts back what the guide opened, once the guide has moved on. */
+  function closeGuideDrawer(): void {
+    if (guideOpened === null) return;
+    if (drawers.openId() === guideOpened) drawers.close();
+    guideOpened = null;
   }
 
   function mountPanels(): void {
     clear(root);
-    root.append(
-      topbar.node,
-      el('div', { class: 'columns' }, [
-        el('div', {}, [sites]),
-        el('div', {}, [board.node, company.node]),
-      ]),
-      logPanel.node,
-    );
+    root.append(scene.node, topbar.node, drawers.node);
   }
   mountPanels();
 
@@ -214,12 +235,20 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   onLanguageChange(() => {
     for (const card of siteCards.values()) card.dispose();
     siteCards = new Map();
-    slotKey = '';
+    clear(detail);
     topbar = createTopBar(ctx);
-    sites = el('div', { class: 'sites' });
     board = createBoard();
     company = createCompanyPanel(ctx);
     logPanel = createLog();
+    const wasOpen = drawers.openId();
+    drawers.dispose();
+    drawers = createDrawers(
+      { bid: board.node, company: company.node, log: logPanel.node },
+      detail,
+    );
+    drawers.onChange(onDrawerChange);
+    if (wasOpen) drawers.open(wasOpen);
+    scene.relabel();
     mountPanels();
     document.title = strings.app.title;
     render();
@@ -299,11 +328,13 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
       case 'payment': {
         if (event.delayed) return;
         siteCards.get(event.projectId)?.payment(event.amount);
+        scene.payment(event.projectId, event.amount);
         play('payment');
         return;
       }
 
       case 'completed':
+        scene.completed(event.projectId);
         play('handover');
         return;
 
@@ -311,7 +342,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
         const gate = (strings.gate as Record<string, string>)[event.gateId] ?? event.gateId;
         const card = siteCards.get(event.projectId);
         if (event.passed) {
-          card?.pass(event.gateId);
+          scene.pass(event.projectId, event.gateId);
           play('pass');
           toasts.show({
             text:
@@ -325,6 +356,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
           return;
         }
         card?.fail();
+        scene.fail(event.projectId, event.floor);
         play('fail');
         const detail = defectLine(event.gateId, state);
         toasts.show({
@@ -344,6 +376,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   function render(): void {
     const now = performance.now();
     topbar.update(ctx, now);
+    scene.update(ctx);
     syncSites();
 
     results = results.filter((entry) => entry.until > now);
@@ -358,9 +391,10 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     toggleClass(root, 'is-wet', state.weather.raining);
 
     tutorial.sync(state);
+    if (!tutorial.active()) closeGuideDrawer();
   }
 
-  /** Adds a card for a new site, drops the card for one that has gone. */
+  /** Keeps a card per running site, and shows the one the scene has chosen. */
   function syncSites(): void {
     const live = new Set(state.projects.map((project) => project.id));
     for (const [id, card] of siteCards) {
@@ -375,45 +409,18 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
       if (!card) {
         card = createSiteCard(ctx, project);
         siteCards.set(project.id, card);
-        sites.append(card.node);
       }
       card.update(ctx, project);
     }
 
-    syncSlots();
-  }
-
-  /**
-   * Every slot the company could ever hold keeps its place, so the room to
-   * grow is on screen from the first minute rather than appearing the moment
-   * it becomes affordable. Repair work is excluded: it takes no slot.
-   */
-  function syncSlots(): void {
-    const maxSlots = data.balance.sites.maxSlots;
-    const running = state.projects.filter((p) => !isRepair(p.typeId)).length;
-    const first = running + 1;
-
-    // Rebuilding on every frame would be waste; the shortfall only needs to
-    // move in round figures, so the key rounds it.
-    const nextCost = nextSiteSlotCost(state);
-    const shortfall = nextCost === null ? 0 : Math.max(0, nextCost - state.company.cash);
-    const key = [
-      first,
-      maxSlots,
-      state.company.siteSlots,
-      Math.round(shortfall / SLOT_SHORTFALL_STEP),
-    ].join(':');
-    if (key === slotKey) return;
-    slotKey = key;
-
-    for (const lot of sites.querySelectorAll('.empty-lot')) lot.remove();
-    for (let slot = first; slot <= maxSlots; slot += 1) {
-      sites.append(renderSlotCard(ctx, slot));
-    }
-  }
-
-  function isRepair(typeId: string): boolean {
-    return data.projectTypeById[typeId]?.lifeline === true;
+    const chosen = scene.selectedId();
+    const wanted = chosen === null ? null : siteCards.get(chosen) ?? null;
+    const shown = detail.firstElementChild;
+    if (shown === (wanted?.node ?? null)) return;
+    clear(detail);
+    if (wanted) detail.append(wanted.node);
+    // The scene's ground line follows the card up and down.
+    toggleClass(root, 'has-detail', wanted !== null);
   }
 
   // ---- loop -------------------------------------------------------------

@@ -62,3 +62,42 @@ describe('src/ui keeps colour and size in theme.ts', () => {
     expect(total).toBeLessThanOrEqual(500 * 1024);
   });
 });
+
+/**
+ * Order 008 §6: the scene's layers are art slots, and the slot list is a
+ * document the next order works from. A slot that exists in code but not in
+ * the document is a layer nobody knows how to draw for.
+ */
+describe('the art slots are documented', () => {
+  const theme = readFileSync(join(ROOT, 'src', 'ui', 'theme.ts'), 'utf8');
+  const doc = readFileSync(join(ROOT, 'docs', 'ART_SLOTS.md'), 'utf8');
+
+  function slotNames(): string[] {
+    const start = theme.indexOf('const art = {');
+    const end = theme.indexOf('\n} as const;', start);
+    expect(start, 'theme.ts has no art block').toBeGreaterThan(-1);
+    return [...theme.slice(start, end).matchAll(/^ {2}(\w+): \{/gm)].map((hit) => hit[1] ?? '');
+  }
+
+  it('has a slot list to check', () => {
+    expect(slotNames().length).toBeGreaterThan(5);
+  });
+
+  it('describes every slot the scene can draw', () => {
+    for (const name of slotNames()) {
+      expect(doc.includes(`\`${name}\``), `docs/ART_SLOTS.md does not list ${name}`).toBe(true);
+    }
+  });
+
+  it('gives every slot a size, a transparency and a tiling direction', () => {
+    const start = theme.indexOf('const art = {');
+    const end = theme.indexOf('\n} as const;', start);
+    const block = theme.slice(start, end);
+    for (const line of block.split('\n')) {
+      if (!/^ {2}\w+: \{/.test(line)) continue;
+      for (const field of ['src', 'w', 'h', 'repeat', 'alpha', 'frames']) {
+        expect(line.includes(`${field}:`), `${line.trim()} is missing ${field}`).toBe(true);
+      }
+    }
+  });
+});

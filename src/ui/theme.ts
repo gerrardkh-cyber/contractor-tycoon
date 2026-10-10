@@ -147,6 +147,8 @@ const svg = {
   badgeRadius: 9,
   badgeStroke: 1.8,
   badgeTick: 'M -3.6 0.2 L -1.2 2.8 L 3.8 -2.8',
+  /** The inspector's other verdict. */
+  badgeCross: 'M -3 -3 L 3 3 M 3 -3 L -3 3',
 
   /** Rain. */
   rainDrops: 26,
@@ -327,6 +329,182 @@ const easing = {
   linear: 'linear',
 } as const;
 
+/**
+ * The scene: the site is the screen, and everything else sits over it.
+ *
+ * Order 008 turns the layout inside out. These are the proportions that make
+ * one set of numbers describe a one-storey house and an eight-storey block on
+ * the same ground line: every floor is the same tile, and one scale factor
+ * (derived from `referenceFloors` filling `maxBuildingRatio` of the viewport)
+ * sizes every building in the row.
+ */
+const scene = {
+  /**
+   * Where the ground line sits, as a fraction of the scene's height. It has
+   * to clear the site card that opens below it, or the card would cover the
+   * very thing it describes.
+   */
+  groundRatio: 0.78,
+  /**
+   * A block of `referenceFloors` fills this much of the room between the HUD
+   * and the ground line. With the ground line at 0.78 that comes out at about
+   * 70% of the window, which is what order 008 §2 asks for. The crane rises
+   * past it into the HUD band, which is translucent on purpose.
+   */
+  maxBuildingRatio: 1,
+  referenceFloors: 8,
+  /** The band at the top the HUD sits in, kept clear of the skyline. */
+  hudRoomPx: 56,
+  /** Below this the scene stops shrinking and the row scrolls instead. */
+  minPlotWidthPx: 210,
+  /** An empty lot is a hoarding, not a building: it needs less room. */
+  lotWidthRatio: 0.62,
+  plotGapPx: 24,
+  /** How much of the scene an open drawer may never take (order 008 §1). */
+  sceneVisibleWithDrawer: 0.34,
+  /** How much of the window the selected site's numbers may take. */
+  detailMaxRatio: 0.22,
+  /** ...and how much of that they keep while a drawer is open. */
+  detailOpenRatio: 0.55,
+
+  tabBarHeight: 52,
+  hudChipGap: 8,
+  hudPadY: 6,
+  hudPadX: 10,
+
+  /** Empty lot: fence posts and the sign that sells the slot. */
+  fenceHeight: 34,
+  fencePostGap: 22,
+  fencePostWidth: 2,
+  fenceRailOffset: 8,
+  /** Skyline silhouettes behind the site. */
+  skylineFarCount: 16,
+  skylineNearCount: 13,
+  skylineFarHeight: 0.26,
+  skylineNearHeight: 0.3,
+  skylineSeed: 1973,
+
+  /** How long one frame of a two-frame walk is held. */
+  stepFrameMs: 260,
+
+  /** Street-level life, in the building's own viewBox units. */
+  workerHeight: 9,
+  workerMin: 3,
+  workerMax: 6,
+  workerFloorsPerExtra: 2,
+  workerStepMs: 520,
+  workerWalkMs: 9000,
+  truckWidth: 44,
+  truckHeight: 17,
+  truckEnterMs: 2600,
+  truckStayMs: 5200,
+  truckLeaveMs: 2400,
+  inspectorHeight: 10,
+  inspectorWalkMs: 2400,
+  inspectorStayMs: 3600,
+  bubbleSize: 13,
+
+  /** The lot sign only redraws when cash moves in round figures. */
+  signRedrawStep: 1000,
+
+  /** How many times a failed floor blinks. */
+  failBlinks: 3,
+  /** How bright the handover flash gets, as an opacity. */
+  flashOpacity: 0.55,
+  /** How far the crew throws its arms up. */
+  cheerArmDeg: -40,
+
+  /** Money flying home. */
+  coinCount: 4,
+  coinRadius: 7,
+  coinFlightMs: 900,
+  coinStaggerMs: 110,
+
+  /** Handover. */
+  celebrateMs: 1500,
+  flagWidth: 12,
+  flagHeight: 8,
+  flagPoleHeight: 16,
+} as const;
+
+/**
+ * Four minutes of real time carry the site from morning to night. Each phase
+ * is a flat set of colours with a slow transition between them, so the sky
+ * never needs colour arithmetic at runtime.
+ */
+const daylight = {
+  cycleMs: 240_000,
+  /** How long the sky takes to cross from one phase to the next. */
+  blendMs: 9000,
+  phases: ['morning', 'day', 'evening', 'night'] as const,
+  morning: {
+    skyTop: '#2b3c52',
+    skyBottom: '#7d6a55',
+    haze: 'rgba(255, 206, 150, 0.16)',
+    ground: '#332b1d',
+    shadow: '-0.7',
+    windows: 'rgba(111, 157, 196, 0.25)',
+  },
+  day: {
+    skyTop: '#2d4a68',
+    skyBottom: '#6d8ba6',
+    haze: 'rgba(255, 255, 255, 0.07)',
+    ground: '#3a3122',
+    shadow: '-0.25',
+    windows: 'rgba(111, 157, 196, 0.18)',
+  },
+  evening: {
+    skyTop: '#2a2a44',
+    skyBottom: '#8a5a44',
+    haze: 'rgba(255, 158, 92, 0.2)',
+    ground: '#302618',
+    shadow: '0.6',
+    windows: 'rgba(245, 197, 24, 0.45)',
+  },
+  night: {
+    skyTop: '#0d1219',
+    skyBottom: '#1b2531',
+    haze: 'rgba(90, 160, 224, 0.08)',
+    ground: '#1e1a12',
+    shadow: '0.2',
+    windows: 'rgba(245, 197, 24, 0.85)',
+  },
+} as const;
+
+/**
+ * Replaceable art slots, one per scene layer.
+ *
+ * Every layer is drawn from vectors today. The six flat layers - sky, both
+ * skylines, ground, fence and weather - take an image the moment their `src`
+ * is set, with no other change.
+ *
+ * The building's own parts and the figures (`foundation`, `floorTile`, `roof`,
+ * `crane`, `worker`, `truck`, `inspector`) are declared here but not wired yet:
+ * each changes with the state of the job - a floor is unbuilt, framed,
+ * serviced, at a gate or finished - and one picture cannot say which. They need
+ * a slot per state, or a sheet with a frame per state, which is a decision for
+ * order 009 rather than a guess here. docs/ART_SLOTS.md says which is which.
+ */
+const art = {
+  sky: { src: null, w: 1920, h: 1080, repeat: 'none', alpha: false, frames: 1 },
+  skylineFar: { src: null, w: 1920, h: 420, repeat: 'x', alpha: true, frames: 1 },
+  skylineNear: { src: null, w: 1920, h: 560, repeat: 'x', alpha: true, frames: 1 },
+  ground: { src: null, w: 512, h: 260, repeat: 'x', alpha: false, frames: 1 },
+  fence: { src: null, w: 128, h: 96, repeat: 'x', alpha: true, frames: 1 },
+  foundation: { src: null, w: 480, h: 96, repeat: 'none', alpha: true, frames: 1 },
+  floorTile: { src: null, w: 480, h: 128, repeat: 'y', alpha: true, frames: 1 },
+  roof: { src: null, w: 520, h: 128, repeat: 'none', alpha: true, frames: 1 },
+  crane: { src: null, w: 640, h: 1024, repeat: 'none', alpha: true, frames: 1 },
+  worker: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
+  truck: { src: null, w: 320, h: 128, repeat: 'none', alpha: true, frames: 2 },
+  inspector: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
+  weather: { src: null, w: 256, h: 256, repeat: 'xy', alpha: true, frames: 1 },
+} as const;
+
+export type ArtSlotId = keyof typeof art;
+export type ArtSlot = (typeof art)[ArtSlotId];
+export type DaylightPhase = (typeof daylight.phases)[number];
+
 export const theme = {
   /** Ad buttons exist but stay hidden until there is an SDK behind them. */
   adHooksEnabled: false,
@@ -342,6 +520,9 @@ export const theme = {
   color,
   size,
   svg,
+  scene,
+  daylight,
+  art,
   font,
   layout,
   motion,

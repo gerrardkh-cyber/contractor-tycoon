@@ -9,10 +9,27 @@
 
 type Listener = (event: unknown) => void;
 
+interface FakeStyle extends Record<string, unknown> {
+  setProperty(name: string, value: string): void;
+  getPropertyValue(name: string): string;
+}
+
+function fakeStyle(): FakeStyle {
+  const own: Record<string, string> = {};
+  return Object.assign(own as Record<string, unknown>, {
+    setProperty(name: string, value: string): void {
+      own[name] = value;
+    },
+    getPropertyValue(name: string): string {
+      return own[name] ?? '';
+    },
+  }) as FakeStyle;
+}
+
 export class FakeNode {
   readonly tag: string;
   readonly attrs = new Map<string, string>();
-  readonly style: Record<string, string> = {};
+  readonly style = fakeStyle();
   children: FakeNode[] = [];
   parent: FakeNode | null = null;
   /** What getBoundingClientRect reports. The spotlight measures its target. */
