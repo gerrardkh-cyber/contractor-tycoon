@@ -439,14 +439,18 @@ function weatherLayer(): Element {
   if (art) return art;
 
   const s = theme.svg;
+  // The layer is stretched across the whole window, so it is laid out in a
+  // large box: a small one would blow every drop up into a plank.
+  const box = theme.scene.weatherBox;
   const svg = svgEl('svg', {
     class: 'scene-weather',
-    viewBox: '0 0 100 100',
+    viewBox: `0 0 ${box} ${box}`,
     preserveAspectRatio: 'none',
   });
-  for (let i = 0; i < s.rainDrops * 2; i += 1) {
-    const x = ((i * 37) % 100) + (i % 3) * 0.7;
-    const y = ((i * 53) % 100);
+  const count = s.rainDrops * theme.scene.weatherDropFactor;
+  for (let i = 0; i < count; i += 1) {
+    const x = ((i * 37) % box) + (i % 7) * 3;
+    const y = (i * 53) % box;
     const drop = svgEl('line', {
       x1: x,
       y1: y,

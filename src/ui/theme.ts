@@ -414,6 +414,10 @@ const scene = {
   /** How far the crew throws its arms up. */
   cheerArmDeg: -40,
 
+  /** The weather layer's own box. Bigger box, smaller-looking drops. */
+  weatherBox: 420,
+  weatherDropFactor: 6,
+
   /** Money flying home. */
   coinCount: 4,
   coinRadius: 7,
