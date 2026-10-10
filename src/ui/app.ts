@@ -32,7 +32,14 @@ import { createSiteCard, renderSlotCard, type SiteCard } from './site';
 import { createTopBar } from './topbar';
 import { createSkeleton, createTitleScreen } from './title';
 import { createTutorial, markTutorialSeen, type TargetName, type Tutorial } from './tutorial';
-import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
+import {
+  abandonDialog,
+  defectLine,
+  GUIDE_TOAST_SELECTOR,
+  offlineDialog,
+  settingsDialog,
+  Toasts,
+} from './overlays';
 import { strings } from './strings';
 import { theme } from './theme';
 import type { Ctx } from './context';
@@ -167,7 +174,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
       case 'namedCard': return q('[data-guide="named-card"]');
       case 'siteProgress': return q('[data-guide="site-progress"]');
       case 'cash': return q('[data-guide="cash"]');
-      case 'toast': return q('[data-guide="toast"]');
+      case 'toast': return q(GUIDE_TOAST_SELECTOR);
       case 'rainChoice': return q('[data-guide="rain-choice"]');
       case 'punchButton': return q('[data-guide="punch-button"]');
       case 'siteCard': return q('[data-guide="site-card"]');
@@ -312,6 +319,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
                 ? strings.toast.passedMinors(gate, event.minors)
                 : strings.toast.passed(gate),
             tone: 'good',
+            kind: 'inspection',
           });
           if (hintStep === 1) setHint(2);
           return;
@@ -323,6 +331,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
           text: strings.toast.failed(gate),
           ...(detail === undefined ? {} : { detail }),
           tone: 'bad',
+          kind: 'inspection',
         });
         return;
       }

@@ -1,9 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { en, ko } from '../src/ui/strings';
 
 const ROOT = process.cwd();
+const UI = join(ROOT, 'src', 'ui');
+
+/**
+ * Every UI file, read from the directory rather than listed by hand: a file
+ * added later is covered the day it lands.
+ */
+function uiFiles(): { name: string; source: string }[] {
+  return readdirSync(UI)
+    .filter((name) => name.endsWith('.ts'))
+    .map((name) => ({ name, source: readFileSync(join(UI, name), 'utf8') }));
+}
 
 type Node = Record<string, unknown>;
 
@@ -101,23 +112,34 @@ function flatten(value: unknown, path = '', out: Record<string, unknown> = {}): 
 describe('the game speaks one language at a time', () => {
   it('keeps Korean out of every UI file except the Korean table', () => {
     const hangul = /[가-힣]/;
-    const files = ['app', 'board', 'building', 'company', 'dom', 'format', 'icons', 'language',
-      'log', 'motion', 'overlays', 'site', 'sound', 'strings', 'strings.en', 'style', 'theme',
-      'title', 'topbar'];
-    for (const name of files) {
-      const source = readFileSync(join(ROOT, 'src', 'ui', `${name}.ts`), 'utf8');
-      expect(hangul.test(source), `${name}.ts has Korean in it; it belongs in strings.ko.ts`).toBe(false);
+    for (const { name, source } of uiFiles()) {
+      if (name === 'strings.ko.ts') continue;
+      expect(hangul.test(source), `${name} has Korean in it; it belongs in strings.ko.ts`).toBe(false);
     }
   });
 
   it('routes every consumer through the language entry point', () => {
-    const files = ['app', 'board', 'company', 'log', 'overlays', 'site', 'title', 'topbar'];
-    for (const name of files) {
-      const source = readFileSync(join(ROOT, 'src', 'ui', `${name}.ts`), 'utf8');
+    for (const { name, source } of uiFiles()) {
+      if (name === 'strings.ts') continue;
       expect(
         /from '\.\/strings\.en'/.test(source),
-        `${name}.ts imports the English table directly, so it cannot switch language`,
+        `${name} imports the English table directly, so it cannot switch language`,
       ).toBe(false);
+    }
+  });
+
+  /**
+   * Order 007 §4 asked for a glossary. A term defined but never attached to
+   * anything is the defect that got through review once already, so the suite
+   * checks that each one reached the screen.
+   */
+  it('attaches every glossary term to something on screen', () => {
+    const sources = uiFiles().map((file) => file.source).join('\n');
+    for (const key of Object.keys(en.terms)) {
+      expect(
+        sources.includes(`terms.${key}`),
+        `strings.terms.${key} is defined but nothing uses it`,
+      ).toBe(true);
     }
   });
 });

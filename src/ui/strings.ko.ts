@@ -287,7 +287,7 @@ export const ko: StringTable = {
     },
     t3pass: {
       say: '검사 합격. 기성이 들어왔습니다.',
-      why: '유보금 10%는 준공 때 한꺼번에 받습니다.',
+      why: (share: string) => `유보금 ${share}는 준공 때 한꺼번에 받습니다.`,
     },
     t3fail: {
       say: '검사 불합격. 재시공합니다.',
@@ -318,8 +318,7 @@ export const ko: StringTable = {
   terms: {
     label: '설명',
     progressPayment: '검사에 합격할 때마다 받는 돈입니다. 준공 때 몰아 받지 않습니다.',
-    retainage: '기성에서 10%씩 떼어 뒀다가 준공 때 한꺼번에 주는 돈입니다.',
-    advance: '착수할 때 미리 받고, 이후 기성에서 조금씩 갚는 돈입니다.',
+    retainage: (share: string) => `기성에서 ${share}씩 떼어 뒀다가 준공 때 한꺼번에 주는 돈입니다.`,
     punch: '검사관이 적어 둔 하자입니다. 준공 전에 전부 정리해야 합니다.',
     inspector: '검사가 얼마나 까다로운지입니다. 엄격할수록 계약금이 큽니다.',
     clientTrait: '이 발주처가 입찰을 고를 때 가장 중요하게 보는 것입니다.',

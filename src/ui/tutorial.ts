@@ -18,8 +18,9 @@
 //   watch --handover--------->  t6    --2s--------->  t7
 //   t7 --bid--> t8 --3s--> done
 
-import type { GameEvent, GameState } from '../core';
+import { data, type GameEvent, type GameState } from '../core';
 import { toggleClass } from './dom';
+import { percent } from './format';
 import { createSpotlight } from './spotlight';
 import { onLanguageChange, strings } from './strings';
 import { theme } from './theme';
@@ -159,7 +160,13 @@ export function createTutorial(host: TutorialHost, fresh: boolean): Tutorial {
       case 't1': return t.t1;
       case 't2': return t.t2;
       case 't2cash': return t.t2cash;
-      case 't3': return failedFirst ? t.t3fail : t.t3pass;
+      case 't3':
+        if (failedFirst) return t.t3fail;
+        // The share held back is a balance number, not a sentence.
+        return {
+          say: t.t3pass.say,
+          why: t.t3pass.why(percent(data.balance.economy.retainageRatio)),
+        };
       case 't4': return t.t4;
       case 't5': return t.t5;
       case 't6': return t.t6;

@@ -3,10 +3,14 @@
 
 import type { Action, GameState } from '../core';
 
+/** What raised a toast. The guide points at inspection results only. */
+export type ToastKind = 'inspection';
+
 export interface ToastRequest {
   text: string;
   detail?: string;
   tone: 'good' | 'bad' | 'info';
+  kind?: ToastKind;
 }
 
 export interface Ctx {

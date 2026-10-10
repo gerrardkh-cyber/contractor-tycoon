@@ -76,7 +76,10 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
 
   const contract = stat(strings.site.contract, '');
   const paid = statWithTip(strings.site.paid, strings.terms.progressPayment);
-  const retainage = statWithTip(strings.site.retainage, strings.terms.retainage);
+  const retainage = statWithTip(
+    strings.site.retainage,
+    strings.terms.retainage(percent(data.balance.economy.retainageRatio)),
+  );
   const deadline = stat(strings.site.deadline, '');
 
   const noteSlot = el('div');

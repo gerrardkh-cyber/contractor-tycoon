@@ -9,6 +9,12 @@ import { theme } from './theme';
 import type { ToastRequest } from './context';
 import type { OfflineSummary } from '../save';
 
+/**
+ * What the guide's T3 step looks for. Any other toast - a lost bid, a defect -
+ * must not be mistaken for the inspection result the step is teaching.
+ */
+export const GUIDE_TOAST_SELECTOR = '[data-guide="toast"][data-toast-kind="inspection"]';
+
 export class Toasts {
   private readonly host: HTMLElement;
 
@@ -18,7 +24,11 @@ export class Toasts {
   }
 
   show(request: ToastRequest): void {
-    const node = el('div', { class: `toast ${request.tone}`, 'data-guide': 'toast' }, [
+    const node = el('div', {
+      class: `toast ${request.tone}`,
+      'data-guide': 'toast',
+      'data-toast-kind': request.kind ?? 'note',
+    }, [
       el('span', { text: request.text }),
       request.detail ? el('span', { class: 'toast-sub', text: request.detail }) : null,
     ]);

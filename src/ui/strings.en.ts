@@ -284,7 +284,7 @@ export const strings = {
     },
     t3pass: {
       say: 'Inspection passed. The progress payment landed.',
-      why: 'A tenth is held back as retainage and paid in full at handover.',
+      why: (share: string) => `${share} is held back as retainage, paid in full at handover.`,
     },
     t3fail: {
       say: 'Inspection failed. The crew reworks it.',
@@ -315,8 +315,7 @@ export const strings = {
   terms: {
     label: 'What this means',
     progressPayment: 'Paid at each inspection you pass, not at the end.',
-    retainage: 'A tenth of every payment, held back until handover.',
-    advance: 'Money paid up front, recovered from later payments.',
+    retainage: (share: string) => `${share} of every payment, held back until handover.`,
     punch: 'Faults the inspector logged. All must be cleared before handover.',
     inspector: 'How hard this one is to satisfy. Stricter pays more.',
     clientTrait: 'What this client cares about most when picking a bid.',
