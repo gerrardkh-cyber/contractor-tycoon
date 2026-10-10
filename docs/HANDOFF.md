@@ -53,9 +53,16 @@
 ### 5. 미완 / 보류
 - **첫 RFQ 기한 1.5배→3배**(발주서 §3 마지막): 미구현. 기한은 `balance.economy.deadlineMultiplier`
   단일 값이라 **첫 RFQ 만 다르게 하려면 core 변경**이 필요합니다 — §7 금지에 걸려 보고만 합니다.
-- 발주서 §6 단계별 스크린샷: T1·T3·T6·T8 은 공개 주소에서 수집, 나머지(T2·T4·T5·T7)는
-  이전 런에서 수집해 `docs/screenshots/guide/` 에 있습니다.
+- 발주서 §6 단계별 스크린샷: T1·T3·T6·T8 은 **공개 주소에서 1회 완주하며 수집**해
+  `docs/screenshots/guide-live/` 에, 나머지(T2·T4·T5·T7)는 이전 런의 `docs/screenshots/guide/` 에 있습니다.
 - 키보드 Tab 이동은 스포트라이트가 막지 않습니다(포인터 기준으로만 "나머지 버튼 비활성").
+
+### 6. 완주 확인에서 새로 발견한 것 — **보고만, 수정 안 함**
+**T8 의 대상이 화면 밖에 있습니다.** 1180×860 에서 `[data-guide="subcontractors"]` 는
+top 865px(뷰포트 860px) 에서 시작합니다. 캡션은 뜨지만 비출 대상이 접힌 화면 아래라
+스포트라이트 링이 보이지 않습니다(`docs/screenshots/guide-live/T8-협력업체.png`).
+고치려면 단계 진입 시 대상을 `scrollIntoView` 하는 한 줄이 `spotlight.paint()` 에 필요합니다.
+발주서에 없는 동작이라 **지시 없이 넣지 않았습니다.**
 
 ---
 
