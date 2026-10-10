@@ -25,6 +25,7 @@ import {
 } from './dom';
 import { duration, money, percent, percentSigned } from './format';
 import { inspectorIcon, traitIcon } from './icons';
+import { infoDot } from './tooltip';
 import { play } from './sound';
 import { strings } from './strings';
 import { theme } from './theme';
@@ -38,6 +39,24 @@ const inspectorName = (id: string): string =>
   (strings.board.inspectors as Record<string, string>)[id] ?? id;
 const typeName = (id: string): string =>
   (strings.projectType as Record<string, string>)[id] ?? id;
+
+/** One line explaining what a client trait or an inspector actually does. */
+const traitTip = (id: string): string => {
+  const map: Record<string, string> = {
+    price: strings.terms.traitPrice,
+    track: strings.terms.traitTrack,
+    schedule: strings.terms.traitSchedule,
+  };
+  return map[id] ?? strings.terms.clientTrait;
+};
+const inspectorTip = (id: string): string => {
+  const map: Record<string, string> = {
+    lenient: strings.terms.inspectorLenient,
+    normal: strings.terms.inspectorNormal,
+    strict: strings.terms.inspectorStrict,
+  };
+  return map[id] ?? strings.terms.inspector;
+};
 
 /** Bid results linger on the card for a moment before the slot refills. */
 export interface BidResult {
@@ -138,7 +157,10 @@ function createRfqCard(rfq: Rfq): Card {
   const type = data.requireProjectType(rfq.typeId);
 
   const minCashTag = el('span', { class: 'tag mono' });
-  const node = el('div', { class: rfq.directAward ? 'rfq named' : 'rfq' }, [
+  const node = el('div', {
+    class: rfq.directAward ? 'rfq named' : 'rfq',
+    'data-guide': rfq.directAward ? 'named-card' : 'rfq',
+  }, [
     el('div', { class: 'rfq-head' }, [
       el('span', { class: 'site-type', text: typeName(type.id) }),
       el('span', { class: 'rfq-price', text: money(rfq.contractBase) }),
@@ -147,9 +169,11 @@ function createRfqCard(rfq: Rfq): Card {
       el('span', { class: 'tag mono', text: strings.site.floors(type.floors) }),
       el('span', { class: 'tag' }, [
         withIcon(traitIcon(rfq.clientTrait), traitName(rfq.clientTrait)),
+        infoDot(traitTip(rfq.clientTrait), traitName(rfq.clientTrait)),
       ]),
       el('span', { class: 'tag' }, [
         withIcon(inspectorIcon(rfq.inspector), inspectorName(rfq.inspector)),
+        infoDot(inspectorTip(rfq.inspector), inspectorName(rfq.inspector)),
       ]),
       el('span', {
         class: 'tag mono',
@@ -176,7 +200,9 @@ function createRfqCard(rfq: Rfq): Card {
     node.append(el('div', { class: 'btn-row' }, [accept]));
   } else {
     tiers = (['low', 'fair', 'high'] as BidTierId[]).map((tierId) => createTier(rfq, tierId));
-    node.append(el('div', { class: 'tiers' }, tiers.map((tier) => tier.node)));
+    node.append(
+      el('div', { class: 'tiers', 'data-guide': 'tier-buttons' }, tiers.map((tier) => tier.node)),
+    );
     // GDD 3.1: declining refills the slot at once. Named, negotiated and
     // lifeline work is take-it-or-leave-it and has no Decline.
     node.append(
@@ -206,17 +232,22 @@ function createRfqCard(rfq: Rfq): Card {
     const hasSlot = activeSiteCount(ctx.state) < ctx.state.company.siteSlots;
     const blocked = !affordable || !hasSlot;
 
-    setText(minCashTag, `${strings.board.minCash} ${money(current.minCash)}`);
+    // Order 007 §5: the badge names what the figure is for, and carries the
+    // gap on the same line rather than in a second note underneath.
+    const gap = current.minCash - ctx.state.company.cash;
+    setText(
+      minCashTag,
+      affordable
+        ? strings.board.qualify(money(current.minCash))
+        : strings.board.qualifyShort(money(current.minCash), money(gap)),
+    );
     setClass(minCashTag, affordable ? 'tag mono' : 'tag mono accent');
 
     if (accept) accept.disabled = blocked;
     for (const tier of tiers) tier.update(ctx, current, blocked);
 
-    const short = affordable
-      ? ''
-      : strings.board.short(money(current.minCash - ctx.state.company.cash));
-    setText(shortNote, short);
-    shortNote.style.display = short ? '' : 'none';
+    setText(shortNote, '');
+    shortNote.style.display = 'none';
 
     const nextHint = hint ?? '';
     if (nextHint !== hintKey) {

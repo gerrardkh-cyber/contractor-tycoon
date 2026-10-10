@@ -99,6 +99,8 @@ export const strings = {
     winChance: 'Win',
     margin: 'Margin',
     minCash: 'Needs',
+    qualify: (amount: string) => `Qualifies at ${amount}`,
+    qualifyShort: (amount: string, gap: string) => `Qualifies at ${amount} · ${gap} short`,
     short: (amount: string) => `${amount} short`,
     accept: 'Accept',
     decline: 'Decline',
@@ -262,6 +264,69 @@ export const strings = {
     newGameConfirm: 'Delete the save?',
     savedNote: 'Your site is where you left it.',
     newNote: 'One lot, one crane, and a tender to win.',
+  },
+
+  tutorial: {
+    skip: 'Skip guide',
+    replay: 'Show the guide again',
+    replayDone: 'The guide will run on your next new company.',
+    t1: {
+      say: 'Take this job.',
+      why: 'The client asked for you by name, so there is no bidding to win.',
+    },
+    t2: {
+      say: 'Foundation work has started.',
+      why: 'The build is paid for up front. Money only comes back when an inspection passes.',
+    },
+    t2cash: {
+      say: 'That is the build coming out of your cash.',
+      why: 'You carry the cost until the first inspection pays you.',
+    },
+    t3pass: {
+      say: 'Inspection passed. The progress payment landed.',
+      why: 'A tenth is held back as retainage and paid in full at handover.',
+    },
+    t3fail: {
+      say: 'Inspection failed. The crew reworks it.',
+      why: 'That costs time and money. Better subcontractors fail less often.',
+    },
+    t4: {
+      say: 'Rain has stopped the pour.',
+      why: 'Waiting is safe. Pouring anyway is faster but harder to pass.',
+    },
+    t5: {
+      say: 'The inspector left items on the list.',
+      why: 'Every one has to be cleared before handover. Clear them now.',
+    },
+    t6: {
+      say: 'Handed over. The retainage came with it.',
+      why: 'Now you win the next one at tender.',
+    },
+    t7: {
+      say: 'Pick your price.',
+      why: 'Bid low and you win often but earn little. Bid high and it is the other way round.',
+    },
+    t8: {
+      say: 'Spend on your subcontractors when the cash allows.',
+      why: 'They build faster and fail fewer inspections.',
+    },
+  },
+
+  terms: {
+    label: 'What this means',
+    progressPayment: 'Paid at each inspection you pass, not at the end.',
+    retainage: 'A tenth of every payment, held back until handover.',
+    advance: 'Money paid up front, recovered from later payments.',
+    punch: 'Faults the inspector logged. All must be cleared before handover.',
+    inspector: 'How hard this one is to satisfy. Stricter pays more.',
+    clientTrait: 'What this client cares about most when picking a bid.',
+    license: 'Your grade. Higher grades unlock bigger buildings.',
+    traitPrice: 'Leans towards the cheaper bid.',
+    traitTrack: 'Favours a contractor with a record behind them.',
+    traitSchedule: 'Short deadline, and docks the final payment if you run late.',
+    inspectorLenient: 'Passes most work. Pays the least.',
+    inspectorNormal: 'Checks properly. Pays the going rate.',
+    inspectorStrict: 'Fails a lot and lists plenty. Pays the most.',
   },
 
   units: {

@@ -30,10 +30,14 @@ export function createCompanyPanel(ctx: Ctx): CompanyPanel {
   const slotSlot = el('div');
   const licenseSlot = el('div');
 
-  const node = el('div', { class: 'panel' }, [
-    el('div', { class: 'panel-title', text: strings.company.title }),
+  const trades = el('div', { class: 'sub-list', 'data-guide': 'subcontractors' }, [
     el('div', { class: 'site-sub', text: strings.company.subcontractors }),
     ...rows.map((row) => row.node),
+  ]);
+
+  const node = el('div', { class: 'panel company-panel' }, [
+    el('div', { class: 'panel-title', text: strings.company.title }),
+    trades,
     slotSlot,
     licenseSlot,
     adHooks(),

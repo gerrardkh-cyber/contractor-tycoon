@@ -18,7 +18,7 @@ export class Toasts {
   }
 
   show(request: ToastRequest): void {
-    const node = el('div', { class: `toast ${request.tone}` }, [
+    const node = el('div', { class: `toast ${request.tone}`, 'data-guide': 'toast' }, [
       el('span', { text: request.text }),
       request.detail ? el('span', { class: 'toast-sub', text: request.detail }) : null,
     ]);
@@ -85,7 +85,9 @@ export function offlineDialog(
 export function settingsDialog(
   onReset: () => void,
   onClose: () => void,
+  onReplayGuide?: () => void,
 ): HTMLElement {
+  const replayNote = el('span', { class: 'site-sub' });
   let armed = false;
   const resetButton = button(strings.settings.reset, () => {
     if (!armed) {
@@ -103,6 +105,13 @@ export function settingsDialog(
       el('span', { text: strings.settings.soundHint }),
       prefersReducedMotion() ? el('span', { text: strings.settings.motionReduced }) : null,
     ]),
+    onReplayGuide
+      ? button(strings.tutorial.replay, () => {
+          onReplayGuide();
+          replayNote.textContent = strings.tutorial.replayDone;
+        }, { class: 'btn' })
+      : null,
+    replayNote,
     resetButton,
     el('div', { class: 'btn-row' }, [
       button(strings.settings.close, onClose, { class: 'btn primary' }),

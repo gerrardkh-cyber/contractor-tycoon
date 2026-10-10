@@ -31,6 +31,7 @@ import {
 import { duration, money, moneySigned, percent } from './format';
 import { createBuildingView } from './building';
 import { inspectorIcon, traitIcon } from './icons';
+import { infoDot, labelWithTip } from './tooltip';
 import { play } from './sound';
 import { strings } from './strings';
 import { theme } from './theme';
@@ -74,21 +75,21 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
   const progressBar = bar(0);
 
   const contract = stat(strings.site.contract, '');
-  const paid = stat(strings.site.paid, '');
-  const retainage = stat(strings.site.retainage, '');
+  const paid = statWithTip(strings.site.paid, strings.terms.progressPayment);
+  const retainage = statWithTip(strings.site.retainage, strings.terms.retainage);
   const deadline = stat(strings.site.deadline, '');
 
   const noteSlot = el('div');
   const decisionSlot = el('div');
   const punchSlot = el('div');
 
-  const node = el('div', { class: 'panel site site-card' }, [
+  const node = el('div', { class: 'panel site site-card', 'data-guide': 'site-card' }, [
     el('div', { class: 'site-head' }, [
       el('span', { class: 'site-type', text: typeName(type.id) }),
       el('span', { class: 'site-sub', text: strings.site.floors(type.floors) }),
     ]),
     view.node,
-    el('div', { class: 'site-head' }, [stageLabel, progressLabel]),
+    el('div', { class: 'site-head', 'data-guide': 'site-progress' }, [stageLabel, progressLabel]),
     progressBar,
     el('div', { class: 'site-grid' }, [
       contract,
@@ -96,7 +97,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
       retainage,
       deadline,
       el('div', { class: 'stat' }, [
-        el('span', { class: 'stat-label', text: strings.site.inspector }),
+        labelWithTip(strings.site.inspector, strings.terms.inspector),
         withIcon(
           inspectorIcon(project.inspector),
           el('span', {
@@ -106,7 +107,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
         ),
       ]),
       el('div', { class: 'stat' }, [
-        el('span', { class: 'stat-label', text: strings.site.client }),
+        labelWithTip(strings.site.client, strings.terms.clientTrait),
         withIcon(
           traitIcon(project.clientTrait),
           el('span', {
@@ -189,7 +190,7 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
     decisionSlot.append(
       el('div', { class: 'site' }, [
         el('div', { class: 'site-note', text: strings.decision.rainTitle }),
-        el('div', { class: 'btn-row' }, [
+        el('div', { class: 'btn-row', 'data-guide': 'rain-choice' }, [
           // Pouring through rain is the risky call, so it wears the warning colour.
           button(strings.decision.pourAnyway(`-${penalty}`), () => {
             play('click');
@@ -238,6 +239,20 @@ export function createSiteCard(ctx: Ctx, project: Project): SiteCard {
   }
 
   return { node, projectId: project.id, update, pass, fail, payment, dispose };
+}
+
+/** Marks a node so the guided tour can find it. */
+function guideTag<T extends HTMLElement>(node: T, name: string): T {
+  node.setAttribute('data-guide', name);
+  return node;
+}
+
+/** A stat whose label carries an information dot. */
+function statWithTip(label: string, tip: string): HTMLElement {
+  return el('div', { class: 'stat' }, [
+    labelWithTip(label, tip),
+    el('span', { class: 'stat-value' }),
+  ]);
 }
 
 function setValue(host: HTMLElement, value: string): void {
@@ -296,12 +311,15 @@ function punchBlock(ctx: Ctx, project: Project, blocking: boolean): HTMLElement 
   const cost = punchItemCost(project);
   const rows: (Node | string)[] = [
     el('div', { class: 'site-head' }, [
-      el('span', {
-        text:
-          project.punchOpen > 0
-            ? strings.site.punchOpen(project.punchOpen)
-            : strings.site.punchNone,
-      }),
+      el('span', { class: 'has-tip' }, [
+        el('span', {
+          text:
+            project.punchOpen > 0
+              ? strings.site.punchOpen(project.punchOpen)
+              : strings.site.punchNone,
+        }),
+        infoDot(strings.terms.punch, strings.site.punchClear),
+      ]),
       el('span', {
         class: 'site-sub',
         text: strings.site.punchCost(money(cost), duration(data.balance.punchList.clearSec)),
@@ -315,14 +333,14 @@ function punchBlock(ctx: Ctx, project: Project, blocking: boolean): HTMLElement 
     );
   } else if (project.punchOpen > 0) {
     rows.push(
-      button(strings.site.punchClear, () => {
+      guideTag(button(strings.site.punchClear, () => {
         play('click');
         ctx.dispatch({
           type: 'clearPunchList',
           projectId: project.id,
           count: project.punchOpen,
         });
-      }, { class: blocking ? 'btn primary small' : 'btn small' }),
+      }, { class: blocking ? 'btn primary small' : 'btn small' }), 'punch-button'),
     );
   }
 

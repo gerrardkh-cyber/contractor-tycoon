@@ -8,6 +8,7 @@ import { button, el, setBar, setClass, setText } from './dom';
 import { money } from './format';
 import { soundIcon } from './icons';
 import { languageToggle } from './language';
+import { labelWithTip } from './tooltip';
 import { NumberTween } from './motion';
 import { onSoundChange, play, soundEnabled, toggleSound } from './sound';
 import { strings } from './strings';
@@ -27,7 +28,7 @@ export function createTopBar(ctx: Ctx): TopBar {
   trust.node.append(trustBar);
 
   const license = el('div', { class: 'stat' }, [
-    el('span', { class: 'stat-label', text: strings.topBar.license }),
+    labelWithTip(strings.topBar.license, strings.terms.license),
     el('span', { class: 'stat-value' }),
   ]);
   const sites = el('div', { class: 'stat' }, [
@@ -43,6 +44,7 @@ export function createTopBar(ctx: Ctx): TopBar {
   refreshSoundLabel(soundButton);
   onSoundChange(() => refreshSoundLabel(soundButton));
 
+  cash.node.setAttribute('data-guide', 'cash');
   const node = el('div', { class: 'topbar' }, [
     cash.node,
     debt.node,

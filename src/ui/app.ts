@@ -31,6 +31,7 @@ import { createLog } from './log';
 import { createSiteCard, renderSlotCard, type SiteCard } from './site';
 import { createTopBar } from './topbar';
 import { createSkeleton, createTitleScreen } from './title';
+import { createTutorial, markTutorialSeen, type TargetName, type Tutorial } from './tutorial';
 import { abandonDialog, defectLine, offlineDialog, settingsDialog, Toasts } from './overlays';
 import { strings } from './strings';
 import { theme } from './theme';
@@ -109,6 +110,9 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
       state = result.state;
       if (action.type === 'submitBid') noteBidResult(before, state, action.rfqId);
       if (hintStep === 0 && action.type === 'submitBid') setHint(1);
+      if (action.type === 'submitBid' && result.ok) tutorial.acted('bid');
+      if (action.type === 'clearPunchList') tutorial.acted('clearPunch');
+      if (action.type === 'resolveDecision') tutorial.acted('rainChoice');
       render();
     },
     toast: (request) => toasts.show(request),
@@ -138,7 +142,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
           autosave.dispose();
           clearSave();
           globalThis.location.reload();
-        }, closeOverlay),
+        }, closeOverlay, () => markTutorialSeen(false)),
       );
     },
   };
@@ -153,6 +157,26 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   let siteCards = new Map<string, SiteCard>();
   let slotKey = '';
 
+  /**
+   * Where each guided step points. Kept here because app.ts is the only place
+   * that knows the whole screen; the guide itself knows nothing about layout.
+   */
+  function findTarget(what: TargetName): Element | null {
+    const q = (sel: string): Element | null => document.querySelector(sel);
+    switch (what) {
+      case 'namedCard': return q('[data-guide="named-card"]');
+      case 'siteProgress': return q('[data-guide="site-progress"]');
+      case 'cash': return q('[data-guide="cash"]');
+      case 'toast': return q('[data-guide="toast"]');
+      case 'rainChoice': return q('[data-guide="rain-choice"]');
+      case 'punchButton': return q('[data-guide="punch-button"]');
+      case 'siteCard': return q('[data-guide="site-card"]');
+      case 'tierButtons': return q('[data-guide="tier-buttons"]');
+      case 'subcontractors': return q('[data-guide="subcontractors"]');
+      default: return null;
+    }
+  }
+
   function mountPanels(): void {
     clear(root);
     root.append(
@@ -165,6 +189,15 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     );
   }
   mountPanels();
+
+  // The guide belongs to a company that has not finished anything yet, which
+   // is a truer test than `fresh`: booting writes a save immediately, so a
+   // reload on the title screen would otherwise count as "not new".
+  const tutorial: Tutorial = createTutorial(
+    { find: findTarget, refresh: () => render() },
+    state.company.completedProjects === 0 && state.projects.length === 0,
+  );
+  document.body.append(tutorial.node, tutorial.skipNode);
 
   /**
    * A language change swaps every label at once. Rather than teach each panel
@@ -244,7 +277,10 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     if (fresh.length === 0) return;
     seenEvents = (state.log[state.log.length - 1] as GameEvent).id;
 
-    for (const event of fresh) handleEvent(event);
+    for (const event of fresh) {
+      handleEvent(event);
+      tutorial.observe(event);
+    }
   }
 
   function handleEvent(event: GameEvent): void {
@@ -311,6 +347,8 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
 
     // Rain drains the colour from the whole screen while it falls.
     toggleClass(root, 'is-wet', state.weather.raining);
+
+    tutorial.sync(state);
   }
 
   /** Adds a card for a new site, drops the card for one that has gone. */

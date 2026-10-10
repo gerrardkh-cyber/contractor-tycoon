@@ -338,7 +338,9 @@ details>summary::-webkit-details-marker{display:none}
 
 .modal-back{
   position:fixed;inset:0;background:${c.overlay};display:flex;align-items:center;justify-content:center;
-  padding:${s.gap}px;z-index:50;animation:fade-in ${m.slideInMs}ms ${easing.out};
+  padding:${s.gap}px;animation:fade-in ${m.slideInMs}ms ${easing.out};
+  /* Above the spotlight: a dialog must never be unreachable behind it. */
+  z-index:60;
 }
 .modal{
   background:${c.panel};border:${s.hairline}px solid ${c.border};border-radius:${s.radius}px;
@@ -357,6 +359,86 @@ details>summary::-webkit-details-marker{display:none}
 .legend span{display:flex;align-items:center;gap:${s.padCell}px}
 .swatch{width:${s.swatch}px;height:${s.swatch}px;border-radius:${s.radiusTiny}px;display:inline-block}
 .footer-bar{display:flex;justify-content:space-between;align-items:center;gap:${s.gapSmall}px;margin-top:${s.gap}px}
+
+
+/* ---- guided first job -------------------------------------------------- */
+/*
+ * The spotlight is four panels around the target rather than a hole cut in one
+ * overlay: panels are not clipped by the overflow rules the target sits in,
+ * and they absorb clicks, so the only pressable thing is what is lit.
+ */
+.spotlight{position:fixed;inset:0;z-index:55;pointer-events:none}
+.spot-panel{
+  position:fixed;top:0;left:0;background:${c.overlay};pointer-events:auto;
+  transform-origin:top left;will-change:transform,width,height;
+}
+.spot-ring{
+  position:fixed;top:0;left:0;pointer-events:none;border-radius:${s.radius}px;
+  box-shadow:0 0 0 ${s.strokeThin}px ${c.accent},0 0 ${s.shadowBlurStrong}px ${c.accentGlow};
+  transform-origin:top left;
+}
+.spot-caption{
+  position:fixed;z-index:56;pointer-events:none;
+  width:min(${s.panelMaxWidth}px,calc(100vw - ${s.gap * 2}px));
+  background:${c.panelRaised};border:${s.hairline}px solid ${c.accentDim};
+  border-left:${s.accentBar}px solid ${c.accent};
+  border-radius:${s.radiusSmall}px;padding:${s.toastPadY}px ${s.toastPadX}px;
+  box-shadow:0 ${s.shadowDrop}px ${s.shadowBlur}px ${c.shadow};
+  animation:rise ${m.slideInMs}ms ${easing.out};
+}
+.spot-say{font-size:${f.title};font-weight:600;color:${c.text}}
+.spot-why{font-size:${f.small};color:${c.textDim};margin-top:${s.gapTiny}px}
+.spot-skip-host{position:fixed;top:${s.gap}px;right:${s.gap}px;z-index:57}
+.spot-skip{
+  pointer-events:auto;background:${c.panelRaised};border-color:${c.border};
+  box-shadow:0 ${s.shadowDrop}px ${s.shadowBlur}px ${c.shadow};
+}
+
+/* What the guide hides while the first job is the whole game. */
+html.guide-first-job .empty-lot{display:none}
+html.guide-hide-company .company-panel{display:none}
+html.guide-first-job .log-list{max-height:0;overflow:hidden}
+html.guide-first-job details>summary{pointer-events:none;opacity:.5}
+html.guide-only-named .rfq:not(.named){display:none}
+html.guide-only-named .rfq.lifeline{display:none}
+html.guide-dim-stats .topbar .stat:not([data-guide="cash"]){opacity:.35}
+/* The language and sound controls stay usable: the order never asked for
+   them to be locked, and a player who cannot read the guide needs them. */
+html.guide-on .topbar-tools{opacity:.6}
+
+/* ---- term tooltips ----------------------------------------------------- */
+.tip{position:relative;display:inline-flex;align-items:center;margin-left:${s.padCell}px}
+.tip-dot{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:${s.infoDot}px;height:${s.infoDot}px;padding:0;border:none;background:none;
+  color:${c.textFaint};cursor:pointer;flex:0 0 auto;
+}
+.tip-dot:hover,.tip-dot:focus-visible{color:${c.blueprint}}
+.tip-icon{width:${s.infoDot}px;height:${s.infoDot}px;stroke-width:${s.strokeThin}}
+.tip-bubble{
+  position:absolute;bottom:calc(100% + ${s.tooltipOffset}px);left:50%;
+  transform:translateX(-50%);z-index:45;
+  width:max-content;max-width:${s.tooltipMaxWidth}px;
+  background:${c.panelRaised};color:${c.text};
+  border:${s.hairline}px solid ${c.borderBright};border-radius:${s.radiusSmall}px;
+  padding:${s.padTight}px ${s.notePadX}px;font-size:${f.tiny};font-weight:400;
+  line-height:1.45;white-space:normal;text-align:left;text-transform:none;letter-spacing:0;
+  box-shadow:0 ${s.shadowDrop}px ${s.shadowBlur}px ${c.shadowStrong};
+  opacity:0;visibility:hidden;transition:opacity ${m.hoverMs}ms;
+}
+.tip:hover .tip-bubble,.tip.is-open .tip-bubble,.tip-dot:focus-visible + .tip-bubble{
+  opacity:1;visibility:visible;
+}
+.has-tip{display:inline-flex;align-items:center;gap:0}
+.tag .tip-dot{color:inherit;opacity:.65}
+.tag .tip-dot:hover{opacity:1}
+
+@media(hover:none){
+  /* No hover on a finger: the dot is a tap target and needs room. */
+  .tip-dot{width:${s.touchTarget}px;height:${s.touchTarget}px;margin:-${s.pad}px}
+  .tip:hover .tip-bubble{opacity:0;visibility:hidden}
+  .tip.is-open .tip-bubble{opacity:1;visibility:visible}
+}
 
 /* Title screen. */
 .title-screen{

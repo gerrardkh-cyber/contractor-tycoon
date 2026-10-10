@@ -225,6 +225,14 @@ const size = {
 
   titleGap: 22,
   titleButtonMinWidth: 200,
+
+  /** Guided tour: the gap the spotlight leaves around what it is lighting. */
+  spotlightPad: 8,
+  /** Below this much room under the target, the caption goes above it. */
+  spotCaptionRoom: 150,
+  tooltipMaxWidth: 260,
+  tooltipOffset: 8,
+  infoDot: 13,
 } as const;
 
 const font = {
@@ -287,6 +295,15 @@ const motion = {
   /** Small interface reactions: hover tint, button press, bar growth. */
   hoverMs: 120,
   pressMs: 80,
+  /** Guided tour dwell times. */
+  guideCashMs: 1500,
+  /** T2 shows the site starting before handing over to the cash figure. */
+  guideStartMs: 3000,
+  /** Floor on a teaching step, so a fast game cannot blink it past. */
+  guideHoldMs: 2600,
+  guideToastGraceMs: 400,
+  guideHandoverMs: 2000,
+  guideSubsMs: 3000,
   barMs: 200,
   sweepMs: 1200,
 
