@@ -405,6 +405,9 @@ html.guide-dim-stats .topbar .stat:not([data-guide="cash"]){opacity:.35}
 /* The language and sound controls stay usable: the order never asked for
    them to be locked, and a player who cannot read the guide needs them. */
 html.guide-on .topbar-tools{opacity:.6}
+/* ...which means the way out must not sit on top of them. The top bar gives
+   it a band of its own at every width while the guide is running. */
+html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
 
 /* ---- term tooltips ----------------------------------------------------- */
 .tip{position:relative;display:inline-flex;align-items:center;margin-left:${s.padCell}px}
@@ -472,12 +475,6 @@ html.guide-on .topbar-tools{opacity:.6}
   .btn.icon-only{min-width:${s.touchTarget}px}
 }
 @media(max-width:${layout.mobileWidth}px){
-  /*
-   * A phone's top bar runs to the right edge, so the guide's way out would
-   * sit on top of the numbers. While the guide is running the bar gives it a
-   * band of its own instead.
-   */
-  html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
   .btn.small,.btn.icon-only,.tier{min-height:${s.touchTarget}px}
   .btn.icon-only{min-width:${s.touchTarget}px}
   #app{padding:${s.gapSmall}px;padding-bottom:${s.pageBottomPad}px}
