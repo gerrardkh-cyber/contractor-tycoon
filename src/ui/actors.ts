@@ -2,13 +2,16 @@
 //
 // Workers, a mixer truck and the inspector, drawn as two- and three-frame
 // vector figures in the same coordinate space as the building so they can
-// stand on its ground line and climb to its floors.
+// stand on its ground line and climb to its floors. When the figure slots
+// have pictures (order 010 §3), each figure carries all its poses and the
+// stylesheet shows the one its state calls for, where the vector one stood.
 //
 // They read the project the same way the building does - whatever the crew is
 // doing is what the figures do - and they animate with transform and opacity
 // only, so the whole layer costs one composited frame.
 
 import { findTask, type GameState, type Project } from '../core';
+import { allHaveArt, artFor, INSPECTOR_POSES, WORKER_POSES, type ArtPiece } from './art';
 import { floorTopOf, type Geometry } from './building';
 import { clear, svgEl, toggleClass } from './dom';
 import { theme } from './theme';
@@ -32,6 +35,18 @@ interface Worker {
   base: number;
 }
 
+/** A pictured figure: its poses, and how tall it stands in drawing units. */
+interface FigureArt {
+  poses: readonly ArtPiece[];
+  height: number;
+}
+
+/** The pictured figures for one drawing, or null where they are drawn. */
+function figureArt(poses: readonly ArtPiece[], g: Geometry): FigureArt | null {
+  if (!allHaveArt(poses)) return null;
+  return { poses, height: g.floorHeight * theme.scene.figureFloorShare };
+}
+
 export function createActors(g: Geometry): Actors {
   const s = theme.scene;
   const svg = svgEl('svg', {
@@ -43,6 +58,11 @@ export function createActors(g: Geometry): Actors {
 
   // The hut the crew shelters in when it rains.
   svg.append(hut(g));
+
+  const workerArt = figureArt(WORKER_POSES, g);
+  toggleClass(svg, 'has-worker-art', workerArt !== null);
+  toggleClass(svg, 'has-inspector-art', allHaveArt(INSPECTOR_POSES));
+  toggleClass(svg, 'has-truck-art', artFor('truck') !== null);
 
   const ground = svgEl('g', { class: 'actor-ground' });
   const climbers = svgEl('g', { class: 'actor-climbers' });
@@ -127,7 +147,7 @@ export function createActors(g: Geometry): Actors {
     const span = g.bodyRight - g.bodyLeft + s.workerHeight * 4;
     for (let i = 0; i < want; i += 1) {
       const base = g.bodyLeft - s.workerHeight * 2 + (span / want) * i;
-      const group = walker('worker', base, g.groundLevel, i);
+      const group = walker('worker', base, g.groundLevel, i, workerArt);
       crew.push({ group, base });
       ground.append(group);
     }
@@ -142,7 +162,7 @@ export function createActors(g: Geometry): Actors {
     }
     if (climbing.length === 0) {
       for (let i = 0; i < CLIMBERS; i += 1) {
-        const group = walker('worker is-climber', 0, 0, i + 2);
+        const group = walker('worker is-climber', 0, 0, i + 2, workerArt);
         climbing.push(group);
         climbers.append(group);
       }
@@ -195,15 +215,50 @@ export function createActors(g: Geometry): Actors {
  * animation. The outer group places it, the middle one walks, the inner one
  * steps - so a walk never fights with a position.
  */
-function walker(className: string, x: number, y: number, index: number): SVGGElement {
+function walker(
+  className: string,
+  x: number,
+  y: number,
+  index: number,
+  figure: FigureArt | null = null,
+): SVGGElement {
   const s = theme.scene;
   const h = s.workerHeight;
   const outer = svgEl('g', { class: className });
   outer.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
 
   const walk = svgEl('g', { class: 'actor-walk' });
+  const walkMs = s.workerWalkMs + index * s.workerStepMs;
   walk.style.animationDelay = `${index * s.workerStepMs}ms`;
-  walk.style.animationDuration = `${s.workerWalkMs + index * s.workerStepMs}ms`;
+  walk.style.animationDuration = `${walkMs}ms`;
+
+  if (figure) {
+    // Every pose, feet on the line and centred on the figure; the stylesheet
+    // shows one. The pictures face right, so the turn runs over a there-and-
+    // back of the walk: right on the way out, mirrored on the way back.
+    const face = svgEl('g', { class: 'actor-face' });
+    // As custom properties rather than inline animation timings, which would
+    // override the inspector's own visit animation on the same element.
+    face.style.setProperty('--face-delay', walk.style.animationDelay);
+    face.style.setProperty('--face-ms', `${walkMs * 2}ms`);
+    for (const piece of figure.poses) {
+      const file = artFor(piece);
+      if (!file) continue;
+      const width = figure.height * (file.w / file.h);
+      face.append(
+        svgEl('image', {
+          class: `actor-pose pose-${piece.slice(piece.indexOf('-') + 1)}`,
+          href: file.url,
+          x: -width / 2,
+          y: -figure.height,
+          width,
+          height: figure.height,
+          preserveAspectRatio: 'none',
+        }),
+      );
+    }
+    walk.append(face);
+  }
 
   const body = svgEl('g', { class: 'actor-body' });
   body.append(
@@ -247,13 +302,36 @@ function buildTruck(g: Geometry): { group: SVGGElement } {
   const y = g.groundLevel;
   const group = svgEl('g', { class: 'actor-truck' });
   // Enters from the left, stands in front of the pour, reverses out the way
-  // it came (order 008 §3).
-  group.style.setProperty('--truck-from', `${(-w * 1.4).toFixed(1)}px`);
-  group.style.setProperty('--truck-stop', `${(g.bodyLeft - w * 0.2).toFixed(1)}px`);
-  group.style.setProperty('--truck-back', `${(g.bodyLeft - w * 0.9).toFixed(1)}px`);
+  // it came (order 008 §3). Where it stops depends on how long it is.
+  const stops = (length: number): void => {
+    group.style.setProperty('--truck-from', `${(-length * 1.4).toFixed(1)}px`);
+    group.style.setProperty('--truck-stop', `${(g.bodyLeft - length * 0.2).toFixed(1)}px`);
+    group.style.setProperty('--truck-back', `${(g.bodyLeft - length * 0.9).toFixed(1)}px`);
+  };
+  stops(w);
   group.style.setProperty('--truck-enter', `${s.truckEnterMs}ms`);
   group.style.setProperty('--truck-stay', `${s.truckStayMs}ms`);
   group.style.setProperty('--truck-leave', `${s.truckLeaveMs}ms`);
+
+  // The pictured mixer is drawn facing right, the way it drives in; backing
+  // out it keeps facing that way.
+  const file = artFor('truck');
+  if (file) {
+    const height = g.floorHeight * s.truckFloorShare;
+    const width = height * (file.w / file.h);
+    stops(width);
+    group.append(
+      svgEl('image', {
+        class: 'truck-art',
+        href: file.url,
+        x: 0,
+        y: y - height,
+        width,
+        height,
+        preserveAspectRatio: 'none',
+      }),
+    );
+  }
 
   group.append(
     svgEl('rect', { class: 'truck-cab', x: 0, y: y - h, width: w * 0.3, height: h * 0.7 }),
@@ -275,7 +353,8 @@ function buildInspector(g: Geometry): { group: SVGGElement; verdict(passed: bool
   // The figure starts off the right edge and walks to the front of the site.
   group.style.setProperty('--walk-to', `${(g.bodyLeft - h * 1.6 - g.width).toFixed(1)}px`);
 
-  const figure = walker('inspector-figure', g.width, g.groundLevel, 0);
+  const art = figureArt(INSPECTOR_POSES, g);
+  const figure = walker('inspector-figure', g.width, g.groundLevel, 0, art);
   figure.append(
     svgEl('rect', {
       class: 'inspector-board',
@@ -290,7 +369,8 @@ function buildInspector(g: Geometry): { group: SVGGElement; verdict(passed: bool
   // final-position coordinate here would end up one walk too far left.
   const bubble = svgEl('g', { class: 'inspector-bubble' });
   const cx = g.width;
-  const cy = g.groundLevel - h * 1.9;
+  // The bubble floats over the head of whichever figure is walking in.
+  const cy = art ? g.groundLevel - art.height - s.bubbleSize * s.bubbleOverHead : g.groundLevel - h * 1.9;
   const mark = svgEl('path', { class: 'bubble-mark', d: theme.svg.badgeTick });
   bubble.append(
     svgEl('circle', { class: 'bubble-disc', cx, cy, r: s.bubbleSize / 2 }),
@@ -300,6 +380,8 @@ function buildInspector(g: Geometry): { group: SVGGElement; verdict(passed: bool
   group.append(figure, bubble);
 
   function verdict(passed: boolean): void {
+    // The pictured inspector gives a thumbs up only for a pass.
+    toggleClass(group, 'is-pass', passed);
     toggleClass(bubble, 'is-pass', passed);
     toggleClass(bubble, 'is-fail', !passed);
     mark.setAttribute('d', passed ? theme.svg.badgeTick : theme.svg.badgeCross);

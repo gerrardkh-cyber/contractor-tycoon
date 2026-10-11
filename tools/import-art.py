@@ -56,6 +56,17 @@ COLOUR_TOLERANCE = 28.0  # mean channel difference along a seam
 ASPECT_TOLERANCE = 0.05  # floor pieces may differ in shape by 5%
 GROUND_ROW = 0.9  # the dirt line is the first row this opaque
 EDGE_ROW = 0.3  # an edge row this covered is a real edge, not a stray corner
+SLAB_FLATNESS = 12.0  # a floor slab's row varies this little in brightness
+TRIM_ALPHA = 128  # pixels this opaque, and only these, decide a piece's box
+STOREY_SPREAD = 0.12  # storeys may differ in height by 12% before a warning
+MAST_TOLERANCE = 4  # px a mast's edges may wander and still be the mast
+MAST_MIN_PERIOD = 12  # the shortest lattice repeat worth believing
+MAST_REPEAT_LIMIT = 18.0  # mean brightness mismatch above which the repeat is loose
+GLASS_MARGIN = 25  # glass is blue at least this far above red
+GLASS_FLOOR = 110  # and at least this bright in blue
+GLASS_MIN_PANE = 20  # pixels; anything smaller is a speck, not a window
+GLOW_COLOUR = (255, 206, 120, 255)  # what a lit window looks like
+GLASS_DETAIL = 3  # how strongly the glass's shading shows through its light
 
 warnings = []
 
@@ -142,33 +153,127 @@ def split_sheet(image, count, name):
     runs = content_runs(empty)
     # Specks of noise make runs of their own; ignore anything a fiftieth wide.
     runs = [r for r in runs if r[1] - r[0] >= w / (count * 50)]
-    if len(runs) == count:
-        return [image.crop((a, 0, b, image.size[1])) for a, b in runs]
 
-    warn(f"{name}: found {len(runs)} separate drawings where {count} were expected; "
-         "falling back to an even split moved to the nearest empty columns")
-    cuts = [0]
-    half = w // (count * 2)
-    for k in range(1, count):
-        nominal = round(k * w / count)
-        best = nominal
-        for d in range(half):
-            for x in (nominal - d, nominal + d):
-                if 0 <= x < w and empty[x] >= EMPTY_COLUMN:
-                    best = x
-                    break
-            else:
+    # Too many: the extras are smears and specks, so the smallest go.
+    while len(runs) > count:
+        smallest = min(runs, key=lambda r: r[1] - r[0])
+        warn(f"{name}: dropping a {smallest[1] - smallest[0]}px fragment at x={smallest[0]}")
+        runs.remove(smallest)
+    # Too few: two drawings overlap across, so no straight cut parts them -
+    # a runner's fist can reach past a cheering arm. The widest run is parted
+    # by what is joined to what: each separate shape goes with the figure it
+    # sits nearest.
+    crops = [image.crop((a, 0, b, image.size[1])) for a, b in runs]
+    while len(crops) < count:
+        i = max(range(len(crops)), key=lambda k: crops[k].size[0])
+        a, b = runs[i]
+        warn(f"{name}: two drawings overlap inside x={a}-{b}; parted shape by shape")
+        left, right = part_by_shape(crops[i])
+        crops[i:i + 1] = [left, right]
+        runs[i:i + 1] = [(a, b), (a, b)]
+    return crops
+
+
+def shapes_of(image):
+    """Every separate shape in a picture, as (pixel list, centre x)."""
+    w, h = image.size
+    alpha = image.getchannel("A").load()
+    seen = [[False] * h for _ in range(w)]
+    found = []
+    for sx in range(w):
+        for sy in range(h):
+            if seen[sx][sy] or alpha[sx, sy] <= EMPTY_ALPHA:
                 continue
-            break
-        else:
-            warn(f"{name}: no empty column near x={nominal}; cutting through the drawing")
-        cuts.append(best)
-    cuts.append(w)
-    return [image.crop((cuts[i], 0, cuts[i + 1], image.size[1])) for i in range(count)]
+            stack, pixels = [(sx, sy)], []
+            seen[sx][sy] = True
+            while stack:
+                x, y = stack.pop()
+                pixels.append((x, y))
+                for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if 0 <= nx < w and 0 <= ny < h and not seen[nx][ny] and alpha[nx, ny] > EMPTY_ALPHA:
+                        seen[nx][ny] = True
+                        stack.append((nx, ny))
+            found.append((pixels, sum(p[0] for p in pixels) / len(pixels)))
+    return found
+
+
+def part_by_shape(image):
+    """Two figures that overlap across, separated into one picture each."""
+    shapes = sorted(shapes_of(image), key=lambda s: len(s[0]), reverse=True)
+    if len(shapes) < 2:
+        w = image.size[0]
+        return image.crop((0, 0, w // 2, image.size[1])), image.crop((w // 2, 0, w, image.size[1]))
+    # The two biggest shapes are the two figures; every other shape joins
+    # whichever of them its middle is closer to.
+    centres = sorted([shapes[0][1], shapes[1][1]])
+    halves = [Image.new("RGBA", image.size, (0, 0, 0, 0)) for _ in range(2)]
+    src = image.load()
+    for pixels, centre in shapes:
+        side = 0 if abs(centre - centres[0]) <= abs(centre - centres[1]) else 1
+        dst = halves[side].load()
+        for x, y in pixels:
+            dst[x, y] = src[x, y]
+    return trim(halves[0]), trim(halves[1])
+
+
+def split_storeys(image, count, name):
+    """
+    Cuts one building drawn storey on storey into its storeys, bottom first.
+
+    There are no gaps between storeys to cut along, so the cuts start even
+    and each one is moved to the nearest floor slab: a slab is a row that is
+    solid across the building and nearly flat in colour, which the open
+    frames, pipes and windows inside a storey are not. Each cut goes through
+    the middle of its slab, so every storey carries half a slab top and
+    bottom and any two of them stacked make a whole one.
+    """
+    image = trim(image)
+    w, h = image.size
+    px = image.load()
+    margin = max(1, w // 100)
+
+    def flatness(y):
+        row = [px[x, y] for x in range(margin, w - margin)]
+        if sum(1 for p in row if p[3] <= EMPTY_ALPHA) > len(row) * 0.02:
+            return None  # not solid across: not a slab
+        lum = [(p[0] + p[1] + p[2]) / 3 for p in row]
+        mean = sum(lum) / len(lum)
+        return (sum((v - mean) ** 2 for v in lum) / len(lum)) ** 0.5
+
+    flat = [flatness(y) for y in range(h)]
+    reach = max(2, h // (count * 4))
+    cuts = [0]
+    for k in range(1, count):
+        nominal = round(k * h / count)
+        slab = [y for y in range(max(1, nominal - reach), min(h - 1, nominal + reach))
+                if flat[y] is not None and flat[y] <= SLAB_FLATNESS]
+        if not slab:
+            warn(f"{name}: no floor slab near y={nominal}; cutting there evenly")
+            cuts.append(nominal)
+            continue
+        # The run of slab rows nearest the even cut, and its middle.
+        best = min(slab, key=lambda y: abs(y - nominal))
+        top = bottom = best
+        while top - 1 in slab:
+            top -= 1
+        while bottom + 1 in slab:
+            bottom += 1
+        cuts.append((top + bottom) // 2)
+    cuts.append(h)
+    heights = [cuts[i + 1] - cuts[i] for i in range(count)]
+    spread = (max(heights) - min(heights)) / (sum(heights) / count)
+    if spread > STOREY_SPREAD:
+        warn(f"{name}: storeys come out {min(heights)}-{max(heights)}px tall; evened out when sized")
+    # Top of the drawing first; the sheet lists its pieces bottom first.
+    pieces = [image.crop((0, cuts[i], w, cuts[i + 1])) for i in range(count)]
+    return list(reversed(pieces))
 
 
 def trim(image):
-    box = image.getchannel("A").point(lambda a: 255 if a > EMPTY_ALPHA else 0).getbbox()
+    # Only what is solidly there decides the box: a background that is a
+    # shade off pure magenta keys out half-transparent, and would otherwise
+    # stretch the box by its whole width.
+    box = image.getchannel("A").point(lambda a: 255 if a > TRIM_ALPHA else 0).getbbox()
     return image.crop(box) if box else image
 
 
@@ -269,6 +374,129 @@ def jib_pivot(image):
     return round(top_x / w, 4), round(beam_y / h, 4)
 
 
+def strip_hook(image, pivot):
+    """
+    Takes the hook and its cables off a jib (order 010 §2): the game draws its
+    own, which can ride down to the floor being framed. Everything hanging
+    below the trolley on the long arm goes; the counterweight, on the short
+    side of the pivot, stays. Returns the jib, and where the hook hung as
+    fractions across and down - the line the drawn cable should follow.
+    """
+    w, h = image.size
+    px = image.load()
+    arm = int(pivot * w) + w // 50
+    cover = [sum(1 for x in range(arm, w) if px[x, y][3] > TRIM_ALPHA) for y in range(h)]
+    beam = max(range(h), key=lambda y: cover[y])
+    # The trolley hangs right under the boom; the first empty row below it is
+    # where the cable starts.
+    cut = next((y for y in range(beam + 1, h) if cover[y] == 0), None)
+    if cut is None:
+        warn("crane-jib: nothing hangs clear of the trolley; no hook to take off")
+        return image, None, None
+    xs = []
+    for y in range(cut, h):
+        for x in range(arm, w):
+            alpha = px[x, y][3]
+            if alpha > EMPTY_ALPHA:
+                xs.append(x)
+            # The faint edge of the cable goes too, or a ghost of it stays.
+            if alpha > 0:
+                px[x, y] = (0, 0, 0, 0)
+    if not xs:
+        warn("crane-jib: no hook found below the trolley")
+        return image, None, None
+    return image, round(sum(xs) / len(xs) / w, 4), round(cut / h, 4)
+
+
+def split_tower(image, name):
+    """
+    Cuts a tower into its head and one repeating length of mast (order 010
+    §2). The head is everything down to where the tower settles to the mast's
+    width; the mast tile is one period of the lattice, found by matching the
+    mast against itself, so stacking tiles reads as one continuous mast.
+    """
+    w, h = image.size
+    alpha = image.getchannel("A").load()
+    spans = []
+    for y in range(h):
+        xs = [x for x in range(w) if alpha[x, y] > TRIM_ALPHA]
+        spans.append((xs[0], xs[-1]) if xs else None)
+    lower = [s for s in spans[h // 2:] if s]
+    mast = (sorted(s[0] for s in lower)[len(lower) // 2], sorted(s[1] for s in lower)[len(lower) // 2])
+    head_end = 0
+    for y, span in enumerate(spans):
+        if span and (abs(span[0] - mast[0]) > MAST_TOLERANCE or abs(span[1] - mast[1]) > MAST_TOLERANCE):
+            head_end = y + 1
+    if head_end == 0 or head_end >= h - 20:
+        warn(f"{name}: could not tell the head from the mast")
+        return image, None, None
+    head = image.crop((0, 0, w, head_end))
+    # Where the mast meets the head, across it: the head overhangs one side.
+    centre = round((mast[0] + mast[1] + 1) / 2 / w, 4)
+
+    # One period of the lattice: the shift at which the mast best matches itself.
+    body = image.crop((mast[0], head_end, mast[1] + 1, h)).convert("L")
+    bw, bh = body.size
+    rows = [sum(body.getpixel((x, y)) for x in range(bw)) / bw for y in range(bh)]
+    best, period = None, None
+    for shift in range(MAST_MIN_PERIOD, bh // 2):
+        diff = sum(abs(rows[y] - rows[y + shift]) for y in range(bh - shift)) / (bh - shift)
+        if best is None or diff < best:
+            best, period = diff, shift
+    if period is None:
+        warn(f"{name}: mast too short to find its repeat")
+        return head, None, centre
+    start = head_end + (bh - period) // 2
+    tile = image.crop((mast[0], start, mast[1] + 1, start + period))
+    if best > MAST_REPEAT_LIMIT:
+        warn(f"{name}: the mast repeats only loosely (mismatch {best:.1f}); stacked tiles may show seams")
+    return head, tile, centre
+
+
+def window_glow(tile):
+    """
+    Order 010 §4: the finished floor's glass, as a picture of its own. Glass
+    is the blueprint blue - blue well above red and above green - and only
+    those pixels light up after dark. Returns the glow image and how many
+    separate panes were found.
+    """
+    w, h = tile.size
+    px = tile.load()
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gp = glow.load()
+    lit = set()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a > TRIM_ALPHA and b > r + GLASS_MARGIN and b >= g and b > GLASS_FLOOR:
+                lit.add((x, y))
+    # The light keeps the glass's own shading, pushed up, so the mullions and
+    # reflections still read through it rather than one flat slab of colour.
+    shade = {p: sum(px[p[0], p[1]][:3]) for p in lit}
+    mean = sum(shade.values()) / max(1, len(shade))
+    for p, value in shade.items():
+        k = max(0.0, 1 + GLASS_DETAIL * (value / mean - 1))
+        gp[p[0], p[1]] = tuple(min(255, round(c * k)) for c in GLOW_COLOUR[:3]) + (GLOW_COLOUR[3],)
+    panes, seen = 0, set()
+    for start in lit:
+        if start in seen:
+            continue
+        panes += 1
+        stack = [start]
+        seen.add(start)
+        size = 0
+        while stack:
+            x, y = stack.pop()
+            size += 1
+            for nb in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if nb in lit and nb not in seen:
+                    seen.add(nb)
+                    stack.append(nb)
+        if size < GLASS_MIN_PANE:
+            panes -= 1
+    return glow, panes, len(lit)
+
+
 def ground_line(image):
     """The first row of solid dirt, counted from the top."""
     w, h = image.size
@@ -304,6 +532,22 @@ def same_size(pieces, names, width):
         warn(f"floors: narrowest piece is {source}px, under the {width}px target; kept at {source}px")
     size = (target, max(1, round(target * median)))
     return [p.resize(size, Image.LANCZOS) for p in pieces]
+
+
+def same_canvas(pieces):
+    """
+    Sprite frames share one canvas so the character stays one size: each
+    pose is centred across and stands on the bottom edge, padded rather than
+    scaled - a sitting figure is shorter than a standing one, and should be.
+    """
+    width = max(p.size[0] for p in pieces)
+    height = max(p.size[1] for p in pieces)
+    out = []
+    for piece in pieces:
+        canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        canvas.alpha_composite(piece, ((width - piece.size[0]) // 2, height - piece.size[1]))
+        out.append(canvas)
+    return out
 
 
 def contact_sheet(pieces, path):
@@ -346,12 +590,15 @@ def write_manifest(entries):
         "  /** Jib only: where it sits on the tower, as fractions across and down. */",
         "  readonly pivotX?: number;",
         "  readonly beamY?: number;",
+        "  /** Jib only: where its hook hung before it was taken off. */",
+        "  readonly hookX?: number;",
+        "  readonly hookY?: number;",
         "}",
         "",
         "export const ART_FILES: Readonly<Record<string, ArtFile>> = {",
     ]
     for name, meta in entries:
-        extra = "".join(f", {key}: {meta[key]}" for key in ("groundLine", "pivotX", "beamY") if key in meta)
+        extra = "".join(f", {key}: {meta[key]}" for key in ("groundLine", "pivotX", "beamY", "hookX", "hookY") if key in meta)
         lines.append(f"  '{name}': {{ url: 'art/{name}.webp', w: {meta['w']}, h: {meta['h']}{extra} }},")
     lines.append("};")
     with open(MANIFEST, "w", encoding="utf-8") as handle:
@@ -365,6 +612,7 @@ def main():
 
     produced = []
     contact = []
+    head_centre = {}
     for sheet in spec["sheets"]:
         path = os.path.join(RAW, sheet["file"])
         print(f"{sheet['file']}")
@@ -373,16 +621,38 @@ def main():
             continue
 
         keyed = key_magenta(Image.open(path))
-        pieces = [trim(p) for p in split_sheet(keyed, len(sheet["pieces"]), sheet["file"])]
-        names = sheet["pieces"]
+        # What is cut out of the sheet. Usually the pieces themselves; a tower
+        # is one drawing that becomes two pieces (head and mast).
+        drawings = sheet.get("drawings", sheet["pieces"])
+        if sheet.get("stacked"):
+            pieces = split_storeys(keyed, len(drawings), sheet["file"])
+        else:
+            pieces = [trim(p) for p in split_sheet(keyed, len(drawings), sheet["file"])]
+        names = list(drawings)
 
         target = sheet["targetWidth"]
         widths = target if isinstance(target, dict) else {n: target for n in names}
 
-        if sheet.get("sameSize"):
+        if sheet.get("frames"):
+            # Sprite frames: one canvas for all, then one width for all.
+            pieces = same_canvas(pieces)
+            pieces = [fit_width(p, widths[n], n) for p, n in zip(pieces, names)]
+        elif sheet.get("sameSize"):
             pieces = same_size(pieces, names, widths[names[0]])
         else:
             pieces = [fit_width(p, widths[n], n) for p, n in zip(pieces, names)]
+
+        # A tower is cut again into a head and a repeating length of mast.
+        extra = []
+        tower = sheet.get("tower")
+        if tower and tower["from"] in names:
+            i = names.index(tower["from"])
+            head, tile, centre = split_tower(pieces[i], tower["from"])
+            if tile is not None:
+                pieces[i] = head
+                names[i] = tower["head"]
+                extra.append((tower["mast"], tile))
+                head_centre[tower["head"]] = centre
 
         if sheet.get("seam") == "stack":
             check_stack(pieces, names)
@@ -396,6 +666,10 @@ def main():
         if held:
             warn(f"{sheet['file']}: HELD - written and reported, but not listed for the game. {held}")
 
+        for name, piece in extra:
+            pieces.append(piece)
+            names.append(name)
+
         for piece, name in zip(pieces, names):
             if sheet.get("seam") == "tile":
                 check_tile(piece, name)
@@ -405,8 +679,23 @@ def main():
             meta = {"w": piece.size[0], "h": piece.size[1]}
             if sheet.get("groundLine"):
                 meta["groundLine"] = ground_line(piece)
+            if name in head_centre:
+                meta["pivotX"] = head_centre[name]
             if name == "crane-jib":
                 meta["pivotX"], meta["beamY"] = jib_pivot(piece)
+                piece, hook_x, hook_y = strip_hook(piece, meta["pivotX"])
+                if hook_x is not None:
+                    meta["hookX"], meta["hookY"] = hook_x, hook_y
+            if name == "floor-complete" and not held:
+                glow, panes, lit = window_glow(piece)
+                if panes == 0:
+                    warn("floor-complete: no window glass found; nights will stay dark")
+                else:
+                    print(f"  windows: {panes} pane(s), {lit} px of glass")
+                    glow_out = os.path.join(OUT, "floor-glow.webp")
+                    glow.save(glow_out, "WEBP", quality=88, method=6)
+                    produced.append(("floor-glow", {"w": glow.size[0], "h": glow.size[1]}))
+                    contact.append(("floor-glow", glow))
             # A held piece is kept for review but must not ship in the build.
             folder = os.path.join(RAW, "held") if held else OUT
             os.makedirs(folder, exist_ok=True)

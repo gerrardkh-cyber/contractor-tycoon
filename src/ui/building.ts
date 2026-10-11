@@ -12,6 +12,7 @@
 
 import { findTask, stageDurationSec, type GameState, type Project } from '../core';
 import { artFor, FLOOR_PIECE, floorsHaveArt, type ArtPiece } from './art';
+import type { ArtFile } from './art-files';
 import { clear, replayAnimation, setAttr, svgEl, toggleClass } from './dom';
 import { theme } from './theme';
 
@@ -73,8 +74,15 @@ export function geometryFor(floors: number): Geometry {
   const floorHeight = floorTileHeight();
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
   const structureHeight = s.foundationHeight + bodyHeight + roofBandHeight(floorHeight);
-  const mastHeight = Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
-  const height = Math.round(s.topPad + mastHeight);
+  // A drawn crane stands a fixed headroom over the roof. A pictured one is
+  // a head on whole lengths of mast: as many as it takes to clear the roof,
+  // so a house gets a short crane and a block a tall one (order 010 §2).
+  const pictured = craneArtSizes();
+  const mastHeight = pictured
+    ? Math.ceil((structureHeight + s.craneArtClearance) / pictured.tileHeight) * pictured.tileHeight
+    : Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
+  const above = pictured ? Math.max(pictured.headHeight, pictured.jibAbove) : 0;
+  const height = Math.round(s.topPad + mastHeight + above);
   const groundLevel = height;
 
   return {
@@ -273,9 +281,7 @@ export function createBuildingView(floors: number): BuildingView {
     const target = working && framing ? framing.floor : null;
     if (target !== liftedFloor) {
       liftedFloor = target;
-      const rest = crane.restY;
-      const to = target === null ? rest : floorTopOf(g, target);
-      crane.lift.style.transform = `translateY(${(to - rest).toFixed(1)}px)`;
+      crane.setDrop(target === null ? crane.restY : floorTopOf(g, target));
     }
 
     if (project.punchOpen !== punchShown) {
@@ -349,6 +355,46 @@ function floorTileHeight(): number {
 function roofBandHeight(floorHeight: number): number {
   const s = theme.svg;
   return artFor('roof') ? floorHeight * s.roofArtFloors : s.roofHeight + s.parapetHeight;
+}
+
+/**
+ * The crane pictures and their sizes in drawing units, or null to draw the
+ * crane. The layout and the drawing both read this, so they cannot disagree.
+ */
+function craneArtSizes(): {
+  head: ArtFile;
+  mast: ArtFile;
+  jib: ArtFile;
+  tileHeight: number;
+  headWidth: number;
+  headHeight: number;
+  pivot: number;
+  jibWidth: number;
+  jibHeight: number;
+  jibAbove: number;
+} | null {
+  const s = theme.svg;
+  const head = artFor('crane-head');
+  const mast = artFor('crane-mast');
+  const jib = artFor('crane-jib');
+  if (!head || !mast || !jib) return null;
+  const unit = s.craneMastWidth / mast.w;
+  // The jib picture is scaled so its long arm, pivot to tip, is the jib length.
+  const pivot = jib.pivotX ?? 0;
+  const jibWidth = s.jibLength / Math.max(0.01, 1 - pivot);
+  const jibHeight = jibWidth * (jib.h / jib.w);
+  return {
+    head,
+    mast,
+    jib,
+    tileHeight: mast.h * unit,
+    headWidth: head.w * unit,
+    headHeight: head.h * unit,
+    pivot,
+    jibWidth,
+    jibHeight,
+    jibAbove: (jib.beamY ?? 0) * jibHeight,
+  };
 }
 
 /** An image slot laid into the drawing, at the picture's own proportions. */
@@ -528,17 +574,29 @@ function buildFloor(g: Geometry, floor: number): FloorParts {
       height: g.floorHeight,
       preserveAspectRatio: 'none',
     });
-    // After dark a finished floor is lived in: a warm wash over the picture,
-    // since the picture's windows are wherever the artist put them.
     group.insertBefore(art, group.firstChild);
+    // After dark a finished floor is lived in. With a window mask (order 010
+    // §4: the glass picked out of the finished-floor picture) only the
+    // windows light; without one, a warm wash over the whole floor.
+    const glow = artFor('floor-glow');
     group.append(
-      svgEl('rect', {
-        class: 'floor-glow',
-        x: g.bodyLeft,
-        y,
-        width: g.bodyWidth,
-        height: g.floorHeight,
-      }),
+      glow
+        ? svgEl('image', {
+            class: 'floor-glow is-art',
+            href: glow.url,
+            x: g.bodyLeft,
+            y,
+            width: g.bodyWidth,
+            height: g.floorHeight,
+            preserveAspectRatio: 'none',
+          })
+        : svgEl('rect', {
+            class: 'floor-glow',
+            x: g.bodyLeft,
+            y,
+            width: g.bodyWidth,
+            height: g.floorHeight,
+          }),
     );
   }
 
@@ -610,7 +668,8 @@ function setBandClass(node: SVGElement, base: string, state: BandState): void {
 
 function buildCrane(g: Geometry): {
   group: SVGGElement;
-  lift: SVGGElement;
+  /** Lets the hook down to a height, in drawing units. */
+  setDrop(y: number): void;
   restY: number;
   art: boolean;
 } {
@@ -662,6 +721,9 @@ function buildCrane(g: Geometry): {
     );
   }
   group.append(mast);
+  // The pictured mast and head, when there are pictures, stand behind the jib.
+  const standing = svgEl('g', { class: 'crane-standing' });
+  group.append(standing);
 
   // The slewing part: jib, counter-jib, cab, trolley and hook all turn together.
   const slew = svgEl('g', { class: 'crane-slew' });
@@ -701,80 +763,115 @@ function buildCrane(g: Geometry): {
     }),
   );
 
-  // Hoist: the cable and its load swing from the trolley.
-  const hoistX = x - s.jibLength * s.hookTrolleyTo;
-  // Two groups: the inner one swings, the outer one rides up to a floor.
-  const lift = svgEl('g', { class: 'crane-lift' });
-  const hoist = svgEl('g', { class: 'crane-hoist' });
-  hoist.style.transformOrigin = `${hoistX}px ${top}px`;
-  const hookDrop = Math.max(s.craneMinHeight / 3, (g.groundLevel - top) * 0.45);
-  hoist.append(
-    svgEl('line', {
-      class: 'crane-cable',
-      x1: hoistX,
-      y1: top,
-      x2: hoistX,
-      y2: top + hookDrop,
-      'stroke-width': s.hookLineStroke,
-    }),
-    svgEl('rect', {
-      class: 'crane-load',
-      x: hoistX - s.loadSize / 2,
-      y: top + hookDrop,
-      width: s.loadSize,
-      height: s.hookSize,
-    }),
-  );
-  lift.append(hoist);
-  slew.append(lift);
-  group.append(slew);
-
-  // Order 009: the tower and the jib can be pictures. The tower stands where
-  // the drawn mast stands; the jib turns with the drawn one, inside the same
-  // slewing group, so the crane still swings. Its picture carries its own
-  // hook, so the drawn hoist is put away rather than hung twice.
-  const towerFile = artFor('crane-tower');
-  const jibFile = artFor('crane-jib');
-  const art = towerFile !== null && jibFile !== null;
-  if (art) {
-    // A tower is as wide as a tower whatever its height: the picture keeps
-    // a fixed width and stretches up the mast, rather than fattening with it.
-    const mastHeight = g.groundLevel - top;
-    const towerWidth = s.craneArtWidth;
-    group.insertBefore(
+  // The pictured crane, when there is one: whole lengths of mast stacked up
+  // from the ground, the head on top, and the jib seated by its A-frame. The
+  // jib's own hook was taken off by the import script; the drawn cable and
+  // hook below hang from where it was, so they can ride to a floor.
+  const pictured = craneArtSizes();
+  const art = pictured !== null;
+  let hoistX = x - s.jibLength * s.hookTrolleyTo;
+  let cableTop = top;
+  if (pictured) {
+    const { head, mast: mastTile, jib, tileHeight, headWidth, headHeight, pivot, jibWidth, jibHeight } = pictured;
+    const tiles = Math.round((g.groundLevel - top) / tileHeight);
+    for (let i = 0; i < tiles; i += 1) {
+      standing.append(
+        svgEl('image', {
+          class: 'crane-art',
+          href: mastTile.url,
+          x: x - s.craneMastWidth / 2,
+          y: g.groundLevel - (i + 1) * tileHeight,
+          width: s.craneMastWidth,
+          // A hair of overlap so stacked tiles never show a hairline gap.
+          height: tileHeight + s.craneTileOverlap,
+          preserveAspectRatio: 'none',
+        }),
+      );
+    }
+    standing.append(
       svgEl('image', {
         class: 'crane-art',
-        href: towerFile.url,
-        x: x - towerWidth / 2,
-        y: top - s.cabSize,
-        width: towerWidth,
-        height: mastHeight + s.cabSize,
+        href: head.url,
+        x: x - (head.pivotX ?? 0.5) * headWidth,
+        y: top - headHeight,
+        width: headWidth,
+        height: headHeight,
         preserveAspectRatio: 'none',
       }),
-      slew,
     );
-    // The picture's A-frame - its pivot, found by the import script - goes
-    // on the mast, with the boom at the mast head. It is drawn with the long
-    // arm to the right and the drawing wants it out over the building to the
+
+    // Drawn long arm right; the scene wants it out over the building to the
     // left, so it is mirrored about the mast.
-    const pivot = jibFile.pivotX ?? 0;
-    const jibWidth = s.jibLength / Math.max(0.01, 1 - pivot);
-    const jibHeight = jibWidth * (jibFile.h / jibFile.w);
+    const jibY = top - pictured.jibAbove;
     slew.append(
       svgEl('image', {
         class: 'crane-art',
-        href: jibFile.url,
+        href: jib.url,
         x: x - pivot * jibWidth,
-        y: top - (jibFile.beamY ?? 0) * jibHeight,
+        y: jibY,
         width: jibWidth,
         height: jibHeight,
         preserveAspectRatio: 'none',
         transform: `matrix(-1 0 0 1 ${2 * x} 0)`,
       }),
     );
+    if (jib.hookX !== undefined) hoistX = x - (jib.hookX - pivot) * jibWidth;
+    if (jib.hookY !== undefined) cableTop = jibY + jib.hookY * jibHeight;
   }
 
-  return { group, lift, restY: top + hookDrop, art };
+  // The cable and what hangs on it. The cable is drawn one unit long and
+  // stretched to length, and the block (hook and load) rides at its end, so
+  // the stylesheet can sway and bob them together off one length.
+  const hoist = svgEl('g', { class: 'crane-hoist' });
+  hoist.style.transformOrigin = `${hoistX}px ${cableTop}px`;
+  const restY = cableTop + Math.max(s.craneMinHeight / 3, (g.groundLevel - top) * s.hookRestShare);
+  const cable = svgEl('line', {
+    class: 'crane-cable',
+    x1: hoistX,
+    y1: cableTop,
+    x2: hoistX,
+    y2: cableTop + 1,
+    'stroke-width': s.hookLineStroke,
+  });
+  cable.style.transformOrigin = `${hoistX}px ${cableTop}px`;
+  const block = svgEl('g', { class: 'crane-block' });
+  // With a pictured crane the cable ends in a drawn hook, as the picture's
+  // did; the drawn crane keeps its plain load.
+  const hung = art ? s.hookSize : 0;
+  const curl = s.hookSize / 2;
+  if (art) {
+    block.append(
+      svgEl('path', {
+        class: 'crane-hook',
+        // A shank and a curl, half the hook each, so it ends where the load starts.
+        d: `M${hoistX} ${cableTop}v${curl}a${curl} ${curl} 0 1 1 -${curl} ${curl}`,
+        'stroke-width': s.hookLineStroke * s.hookStrokeScale,
+      }),
+    );
+  }
+  block.append(
+    svgEl('rect', {
+      class: 'crane-load',
+      x: hoistX - s.loadSize / 2,
+      y: cableTop + hung,
+      width: s.loadSize,
+      height: s.hookSize,
+    }),
+  );
+  hoist.append(cable, block);
+  slew.append(hoist);
+  group.append(slew);
+
+  function setDrop(y: number): void {
+    // The block always hangs clear of the trolley, and above the floor it
+    // serves rather than inside it.
+    const length = Math.max(s.hookSize, y - cableTop - hung - s.hookSize);
+    hoist.style.setProperty('--cable', length.toFixed(1));
+    hoist.style.setProperty('--cable-y', `${length.toFixed(1)}px`);
+  }
+  setDrop(restY);
+
+  return { group, setDrop, restY, art };
 }
 
 function renderPunch(layer: SVGGElement, g: Geometry, open: number, previous: number): void {

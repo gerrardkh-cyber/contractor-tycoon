@@ -8,19 +8,23 @@
   ],
   "sheets": [
     {
-      "file": "floors.png",
+      "file": "floors-stack.png",
       "pieces": [
-        "floor-grid",
-        "floor-framing",
-        "floor-framed",
+        "floor-complete",
         "floor-services",
-        "floor-complete"
+        "floor-framed",
+        "floor-framing",
+        "floor-grid"
       ],
       "sameSize": true,
       "seam": "stack",
       "targetWidth": 480,
-      "hold": "All three generations drew each segment as a block of about four storeys (258x463, portrait). As a floor tile a house would read as a four-storey building. Imported and reported, not listed for the game until decided.",
-      "maxTileAspect": 0.6
+      "maxTileAspect": 0.6,
+      "stacked": true,
+      "_comment": "Order 010: one building drawn five storeys high, cut storey by storey. Pieces are listed bottom first, as the storeys are drawn.",
+      "derived": [
+        "floor-glow"
+      ]
     },
     {
       "file": "foundation-roof.png",
@@ -33,12 +37,22 @@
     {
       "file": "crane.png",
       "pieces": [
-        "crane-tower",
+        "crane-head",
+        "crane-mast",
         "crane-jib"
       ],
       "targetWidth": {
         "crane-tower": 256,
         "crane-jib": 960
+      },
+      "drawings": [
+        "crane-tower",
+        "crane-jib"
+      ],
+      "tower": {
+        "from": "crane-tower",
+        "head": "crane-head",
+        "mast": "crane-mast"
       }
     },
     {
@@ -65,14 +79,42 @@
       "seam": "tile",
       "groundLine": true,
       "targetWidth": 1920
+    },
+    {
+      "file": "workers.png",
+      "pieces": [
+        "worker-walk-a",
+        "worker-walk-b",
+        "worker-carry",
+        "worker-sit",
+        "worker-run",
+        "worker-cheer"
+      ],
+      "frames": true,
+      "targetWidth": 200,
+      "_comment": "Order 010 §3: one worker in six poses, cut 6 ways, one canvas so the figure stays one size."
+    },
+    {
+      "file": "inspector.png",
+      "pieces": [
+        "inspector-walk",
+        "inspector-check",
+        "inspector-thumb"
+      ],
+      "frames": true,
+      "targetWidth": 240
+    },
+    {
+      "file": "truck.png",
+      "pieces": [
+        "truck"
+      ],
+      "targetWidth": 640
     }
   ],
   "vectorOnly": [
     "sky",
     "rain",
-    "workers",
-    "truck",
-    "inspector",
     "fence"
   ]
 }

@@ -13,14 +13,34 @@ export interface ArtFile {
   /** Jib only: where it sits on the tower, as fractions across and down. */
   readonly pivotX?: number;
   readonly beamY?: number;
+  /** Jib only: where its hook hung before it was taken off. */
+  readonly hookX?: number;
+  readonly hookY?: number;
 }
 
 export const ART_FILES: Readonly<Record<string, ArtFile>> = {
+  'floor-glow': { url: 'art/floor-glow.webp', w: 480, h: 71 },
+  'floor-complete': { url: 'art/floor-complete.webp', w: 480, h: 71 },
+  'floor-services': { url: 'art/floor-services.webp', w: 480, h: 71 },
+  'floor-framed': { url: 'art/floor-framed.webp', w: 480, h: 71 },
+  'floor-framing': { url: 'art/floor-framing.webp', w: 480, h: 71 },
+  'floor-grid': { url: 'art/floor-grid.webp', w: 480, h: 71 },
   'foundation': { url: 'art/foundation.webp', w: 480, h: 218 },
-  'roof': { url: 'art/roof.webp', w: 480, h: 213 },
-  'crane-tower': { url: 'art/crane-tower.webp', w: 134, h: 596 },
-  'crane-jib': { url: 'art/crane-jib.webp', w: 855, h: 303, pivotX: 0.2187, beamY: 0.4224 },
-  'skyline-far': { url: 'art/skyline-far.webp', w: 1920, h: 240 },
-  'skyline-near': { url: 'art/skyline-near.webp', w: 1584, h: 482 },
-  'ground': { url: 'art/ground.webp', w: 1584, h: 234, groundLine: 37 },
+  'roof': { url: 'art/roof.webp', w: 480, h: 212 },
+  'crane-head': { url: 'art/crane-head.webp', w: 132, h: 139, pivotX: 0.4167 },
+  'crane-jib': { url: 'art/crane-jib.webp', w: 854, h: 302, pivotX: 0.2178, beamY: 0.4238, hookX: 0.5308, hookY: 0.5331 },
+  'crane-mast': { url: 'art/crane-mast.webp', w: 84, h: 38 },
+  'skyline-far': { url: 'art/skyline-far.webp', w: 1920, h: 238 },
+  'skyline-near': { url: 'art/skyline-near.webp', w: 1584, h: 480 },
+  'ground': { url: 'art/ground.webp', w: 1584, h: 230, groundLine: 34 },
+  'worker-walk-a': { url: 'art/worker-walk-a.webp', w: 200, h: 332 },
+  'worker-walk-b': { url: 'art/worker-walk-b.webp', w: 200, h: 332 },
+  'worker-carry': { url: 'art/worker-carry.webp', w: 200, h: 332 },
+  'worker-sit': { url: 'art/worker-sit.webp', w: 200, h: 332 },
+  'worker-run': { url: 'art/worker-run.webp', w: 200, h: 332 },
+  'worker-cheer': { url: 'art/worker-cheer.webp', w: 200, h: 332 },
+  'inspector-walk': { url: 'art/inspector-walk.webp', w: 240, h: 417 },
+  'inspector-check': { url: 'art/inspector-check.webp', w: 240, h: 417 },
+  'inspector-thumb': { url: 'art/inspector-thumb.webp', w: 240, h: 417 },
+  'truck': { url: 'art/truck.webp', w: 640, h: 267 },
 };

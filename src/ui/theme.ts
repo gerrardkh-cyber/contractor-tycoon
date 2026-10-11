@@ -121,8 +121,15 @@ const svg = {
   /** Tower crane, standing to the right of the building. */
   craneX: 143,
   craneBaseWidth: 18,
-  /** How wide the crane tower picture stands, whatever the mast's height. */
-  craneArtWidth: 15,
+  /**
+   * How wide the pictured mast stands; the head and its lengths of mast are
+   * scaled to match, so this sets the whole pictured crane's size.
+   */
+  craneMastWidth: 8,
+  /** How far a pictured crane's mast must at least clear the roof. */
+  craneArtClearance: 4,
+  /** Overlap between stacked mast lengths, so no hairline shows between them. */
+  craneTileOverlap: 0.3,
   craneBaseHeight: 5,
   mastWidth: 7,
   mastRungGap: 7,
@@ -136,6 +143,12 @@ const svg = {
   hookTrolleyTo: 0.86,
   hookLineStroke: 0.9,
   hookSize: 3.4,
+  /** The drawn hook's line, relative to the cable's. */
+  hookStrokeScale: 1.6,
+  /** How far down the mast the hook hangs while there is nothing to lift. */
+  hookRestShare: 0.45,
+  /** How much of the cable the bob takes up while the crane works. */
+  hookLiftShare: 0.3,
   loadSize: 7,
   /** How far the mast rises above the topmost floor. */
   craneHeadroom: 26,
@@ -420,9 +433,21 @@ const scene = {
   truckStayMs: 5200,
   truckLeaveMs: 2400,
   inspectorHeight: 10,
+  /**
+   * Order 010 §3: a pictured figure stands this share of a floor tall, and the
+   * pictured mixer this share. The drawn figures keep the sizes above.
+   */
+  figureFloorShare: 0.4,
+  truckFloorShare: 0.85,
   inspectorWalkMs: 2400,
   inspectorStayMs: 3600,
   bubbleSize: 13,
+  /** How far over a pictured inspector's head the bubble floats, in bubbles. */
+  bubbleOverHead: 0.7,
+  /** The share of a pictured inspector's stay spent checking before the verdict. */
+  inspectorCheckShare: 0.5,
+  /** How brightly the window mask lights at night. */
+  windowGlowOpacity: 0.92,
 
   /** The lot sign only redraws when cash moves in round figures. */
   signRedrawStep: 1000,

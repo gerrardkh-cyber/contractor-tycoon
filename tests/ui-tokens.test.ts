@@ -71,16 +71,21 @@ describe('src/ui keeps colour and size in theme.ts', () => {
  */
 describe('the image slots agree everywhere they are listed', () => {
   const spec = JSON.parse(readFileSync(join(ROOT, 'tools', 'art-slots.json'), 'utf8')) as {
-    sheets: { file: string; pieces: string[] }[];
+    sheets: { file: string; pieces: string[]; derived?: string[] }[];
     vectorOnly: string[];
   };
-  const pieces = spec.sheets.flatMap((sheet) => sheet.pieces);
+  // What the game can be given: every piece cut from a sheet, and anything
+  // made from one (the night glow made from the finished floor).
+  const pieces = spec.sheets.flatMap((sheet) => [...sheet.pieces, ...(sheet.derived ?? [])]);
   const doc = readFileSync(join(ROOT, 'docs', 'ART_SLOTS.md'), 'utf8');
   const art = readFileSync(join(ROOT, 'src', 'ui', 'art.ts'), 'utf8');
   const files = readFileSync(join(ROOT, 'src', 'ui', 'art-files.ts'), 'utf8');
 
-  it('has the twelve pieces order 009 names', () => {
-    expect(pieces).toHaveLength(12);
+  it('has the pieces orders 009 and 010 name', () => {
+    // 009: five floors, foundation, roof, crane, two skylines, ground.
+    // 010: the crane's head and mast in place of its tower, the night glow,
+    // six worker poses, three inspector poses and the mixer.
+    expect(pieces).toHaveLength(24);
   });
 
   it('documents every piece and every sheet', () => {

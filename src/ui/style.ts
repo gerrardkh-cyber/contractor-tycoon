@@ -86,6 +86,8 @@ button{font:inherit;color:inherit}
  */
 function scene(): string {
   const { color: c, size: s, font: f, motion: m, easing, scene: sc, daylight: d } = theme;
+  // One inspector visit, as the visit animation runs it.
+  const visit = `calc(var(--walk-ms) * 2 + var(--stay-ms))`;
   const phase = (id: keyof typeof d.morning extends never ? never : 'morning' | 'day' | 'evening' | 'night'): string => {
     const p = d[id];
     return `.scene[data-phase="${id}"]{
@@ -252,6 +254,45 @@ ${phase('night')}
 .actors.is-fixing .is-climber .actor-arm{
   animation:fix-arm ${sc.stepFrameMs * 2}ms ${easing.inOut} infinite alternate;
 }
+/*
+ * Order 010 §3: pictured figures. Each carries all its poses and shows one:
+ * the two steps alternate while walking, and every other state swaps in its
+ * own pose where the drawn figure stood. Later rules win, so the list runs
+ * from the everyday to what overrides it.
+ */
+.actors.has-worker-art .worker .actor-body,
+.actors.has-inspector-art .inspector-figure .actor-body,
+.actors.has-inspector-art .inspector-board,
+.actors.has-truck-art .truck-cab,
+.actors.has-truck-art .truck-bed,
+.actors.has-truck-art .truck-drum,
+.actors.has-truck-art .truck-wheel{display:none}
+.actors .actor-pose{opacity:0}
+.actors .actor-face{
+  transform-box:fill-box;transform-origin:center;
+  animation:face-turn var(--face-ms,0s) ${easing.linear} var(--face-delay,0s) infinite;
+}
+.actors .worker .pose-walk-a{opacity:1;animation:frame-a ${sc.stepFrameMs * 2}ms steps(1) infinite}
+.actors .worker .pose-walk-b{animation:frame-b ${sc.stepFrameMs * 2}ms steps(1) infinite}
+.actors .worker.is-climber .actor-pose{animation:none;opacity:0}
+.actors .worker.is-climber .pose-carry{opacity:1}
+.actors.is-fixing .is-climber .actor-face{animation:none}
+.actors.is-resting .worker .actor-pose{animation:none;opacity:0}
+.actors.is-resting .worker .pose-sit{opacity:1}
+.actors.is-resting .worker .actor-face{animation:none}
+.actors.is-sheltering .worker .actor-pose{animation:none;opacity:0}
+.actors.is-sheltering .worker .pose-run{opacity:1}
+.actors.is-sheltering .worker .actor-face{animation:none;transform:scaleX(-1)}
+.actors.is-cheering .worker .actor-pose{animation:none;opacity:0}
+.actors.is-cheering .worker .pose-cheer{opacity:1}
+/* The inspector walks in facing the site, checks, and walks back out. */
+.actors.has-inspector-art .inspector-figure .actor-walk{animation:none}
+.actors .inspector-figure .actor-face{animation:none;transform:scaleX(-1)}
+.actors .actor-inspector.is-visiting .actor-face{animation:inspector-face ${visit} step-end forwards}
+.actors .actor-inspector.is-visiting .pose-walk{animation:inspector-pose-walk ${visit} step-end forwards}
+.actors .actor-inspector.is-visiting .pose-check{animation:inspector-pose-check ${visit} step-end forwards}
+.actors .actor-inspector.is-visiting.is-pass .pose-check{animation-name:inspector-pose-check-pass}
+.actors .actor-inspector.is-visiting.is-pass .pose-thumb{animation:inspector-pose-thumb ${visit} step-end forwards}
 .actors .actor-hut .hut-body{fill:${c.panelRaised};stroke:${c.border}}
 .actors .actor-hut .hut-door{fill:${c.panelSunk}}
 .actors .actor-hut .hut-roof{stroke:${c.steel};stroke-width:1.2}
@@ -409,13 +450,16 @@ function building(): string {
 .bld-crane .crane-base{fill:${c.craneDark}}
 .bld-crane .crane-rung{stroke:${c.craneDark}}
 .bld-crane .crane-cab{fill:${c.craneDark};stroke:${c.crane};stroke-width:${v.wallStroke}}
-.bld-crane .crane-cable{stroke:${c.craneCable}}
+.bld-crane .crane-cable{stroke:${c.craneCable};transform-box:view-box;transform:scaleY(var(--cable,1))}
+.bld-crane .crane-block{transform-box:view-box;transform:translateY(var(--cable-y,0))}
+.bld-crane .crane-hook{stroke:${c.craneDark};fill:none;stroke-linecap:round}
 .bld-crane .crane-load{fill:${c.rebar};stroke:${c.craneDark};stroke-width:${v.wallStroke}}
 .bld-crane .crane-slew{transform-box:view-box}
 .bld-crane .crane-hoist{transform-box:view-box}
 .bld-crane.is-working .crane-slew{animation:crane-slew ${m.craneTurnMs}ms ${easing.linear} infinite}
 .bld-crane.is-working .crane-hoist{animation:crane-sway ${m.craneSwayMs}ms ${easing.inOut} infinite}
-.bld-crane.is-working .crane-load{animation:crane-lift ${m.craneLiftMs}ms ${easing.inOut} infinite}
+.bld-crane.is-working .crane-cable{animation:crane-cable-lift ${m.craneLiftMs}ms ${easing.inOut} infinite}
+.bld-crane.is-working .crane-block{animation:crane-lift ${m.craneLiftMs}ms ${easing.inOut} infinite}
 .bld-crane.is-idle .crane-load{opacity:.45}
 
 .bld-rain{opacity:0;pointer-events:none}
@@ -443,12 +487,14 @@ function building(): string {
 .floor-glow{fill:var(--window-lit);opacity:0;pointer-events:none;transition:opacity ${m.slideInMs * 4}ms ${easing.out}}
 .scene[data-phase="night"] .bld-floor.is-done .floor-glow{opacity:.34}
 .scene[data-phase="evening"] .bld-floor.is-done .floor-glow{opacity:.2}
+/* The window mask lights only the glass, and only at night. */
+.scene[data-phase="evening"] .bld-floor.is-done .floor-glow.is-art{opacity:0}
+.scene[data-phase="night"] .bld-floor.is-done .floor-glow.is-art{opacity:${theme.scene.windowGlowOpacity}}
 .building.has-crane-art .crane-base,
 .building.has-crane-art .crane-mast,
 .building.has-crane-art .crane-cab,
 .building.has-crane-art .crane-jib,
-.building.has-crane-art .crane-tie,
-.building.has-crane-art .crane-hoist{display:none}
+.building.has-crane-art .crane-tie{display:none}
 
 /* Topped out: the flag goes up and stays up. */
 .bld-flag{opacity:0;transition:opacity ${m.slideInMs}ms ${easing.out}}
@@ -835,6 +881,8 @@ function animations(): string {
   const walkIn = ((sc.inspectorWalkMs / visitTotal) * 100).toFixed(1);
   const walkOut = (((sc.inspectorWalkMs + sc.inspectorStayMs) / visitTotal) * 100).toFixed(1);
   const bubbleIn = (((sc.inspectorWalkMs * 1.2) / visitTotal) * 100).toFixed(1);
+  // A pictured inspector checks the first half of the stay, then gives the verdict.
+  const verdictAt = (((sc.inspectorWalkMs + sc.inspectorStayMs * sc.inspectorCheckShare) / visitTotal) * 100).toFixed(1);
   return `
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes sweep{to{transform:translateX(100%)}}
@@ -890,6 +938,12 @@ function animations(): string {
 @keyframes frame-a{0%,49.9%{opacity:1}50%,100%{opacity:0}}
 @keyframes fix-arm{from{transform:rotate(-18deg)}to{transform:rotate(14deg)}}
 @keyframes frame-b{0%,49.9%{opacity:0}50%,100%{opacity:1}}
+@keyframes face-turn{0%,49.9%{transform:scaleX(1)}50%,100%{transform:scaleX(-1)}}
+@keyframes inspector-face{0%{transform:scaleX(-1)}${walkOut}%{transform:scaleX(1)}100%{transform:scaleX(1)}}
+@keyframes inspector-pose-walk{0%{opacity:1}${walkIn}%{opacity:0}${walkOut}%{opacity:1}100%{opacity:1}}
+@keyframes inspector-pose-check{0%{opacity:0}${walkIn}%{opacity:1}${walkOut}%{opacity:0}100%{opacity:0}}
+@keyframes inspector-pose-check-pass{0%{opacity:0}${walkIn}%{opacity:1}${verdictAt}%{opacity:0}100%{opacity:0}}
+@keyframes inspector-pose-thumb{0%{opacity:0}${verdictAt}%{opacity:1}${walkOut}%{opacity:0}100%{opacity:0}}
 @keyframes celebrate{
   0%{opacity:0}
   20%{opacity:${theme.scene.flashOpacity}}
@@ -922,10 +976,14 @@ function animations(): string {
   100%{opacity:0;transform:scale(.8)}
 }
 @keyframes crane-sway{0%,100%{transform:rotate(-2.2deg)}50%{transform:rotate(2.2deg)}}
+/* The bob: the cable reels in part of its length and the block rides up with it. */
 @keyframes crane-lift{
-  0%,100%{transform:translateY(0)}
-  45%{transform:translateY(-${v.craneHeadroom / 2}px)}
-  55%{transform:translateY(-${v.craneHeadroom / 2}px)}
+  0%,100%{transform:translateY(var(--cable-y,0))}
+  45%,55%{transform:translateY(calc(var(--cable-y,0) * ${1 - v.hookLiftShare}))}
+}
+@keyframes crane-cable-lift{
+  0%,100%{transform:scaleY(var(--cable,1))}
+  45%,55%{transform:scaleY(calc(var(--cable,1) * ${1 - v.hookLiftShare}))}
 }
 .spinner{
   width:${s.spinner}px;height:${s.spinner}px;
@@ -952,7 +1010,9 @@ html.no-motion .bld-floor.is-servicesGate .floor-gate{opacity:1}
 /* Degraded only: keep the game legible, drop the continuous decoration. */
 html.degraded .scene-weather{display:none}
 html.degraded .actors .actor-walk,
-html.degraded .actors .actor-legs{animation:none}
+html.degraded .actors .actor-legs,
+html.degraded .actors .worker .actor-face,
+html.degraded .actors .worker .actor-pose{animation:none}
 html.degraded .scene-skyline.is-far{display:none}
 html.degraded .bld-crane .crane-load{opacity:.45}
 `;
