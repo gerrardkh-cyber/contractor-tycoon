@@ -154,7 +154,13 @@ function processGates(state: GameState, project: Project, task: Task, rng: Rng):
     if (gateId === undefined) break;
 
     // A gate that demands a clean punch list parks the task until it is clear.
-    if (gateBlockedByPunchList(project, gateId)) return;
+    // GDD 5.3 (order 009): reaching it queues every open item, so the wait is
+    // the price of not clearing early rather than a site stopped for ever -
+    // which, with nobody at the keyboard overnight, is what it used to be.
+    if (gateBlockedByPunchList(project, gateId)) {
+      project.punchClearQueued = Math.max(project.punchClearQueued, project.punchOpen);
+      return;
+    }
 
     const outcome = rollGate(state, project, task, gateId, rng);
     if (!outcome.passed) {
