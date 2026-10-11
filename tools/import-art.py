@@ -67,6 +67,10 @@ GLASS_FLOOR = 110  # and at least this bright in blue
 GLASS_MIN_PANE = 20  # pixels; anything smaller is a speck, not a window
 GLOW_COLOUR = (255, 206, 120, 255)  # what a lit window looks like
 GLASS_DETAIL = 3  # how strongly the glass's shading shows through its light
+COLUMN_ROWS = (0.2, 0.8)  # the part of a storey's height a column is judged on
+COLUMN_FILL = 0.9  # a column is solid through at least this share of it
+COLUMN_THIN = 0.04  # and no wider than this share of the tile
+COLUMN_MATCH = 6  # px: how far apart two storeys may put the same column
 
 warnings = []
 
@@ -453,6 +457,62 @@ def split_tower(image, name):
     return head, tile, centre
 
 
+def is_glass(pixel):
+    """The blueprint blue of glass and of the sky behind an open frame."""
+    r, g, b, a = pixel
+    return b > r + GLASS_MARGIN and b >= g and b > GLASS_FLOOR
+
+
+def column_runs(tile):
+    """
+    The stretches of a storey tile that stand solid through most of its
+    height (slab rows at top and bottom left out): columns, walls between
+    windows. Returned as (first, last) pixel columns.
+    """
+    w, h = tile.size
+    px = tile.load()
+    rows = range(int(h * COLUMN_ROWS[0]), int(h * COLUMN_ROWS[1]))
+    runs, start = [], None
+    for x in range(w + 1):
+        solid = False
+        if x < w:
+            hits = sum(1 for y in rows if px[x, y][3] > TRIM_ALPHA and not is_glass(px[x, y]))
+            solid = hits >= COLUMN_FILL * len(rows)
+        if solid and start is None:
+            start = x
+        if not solid and start is not None:
+            runs.append((start, x - 1))
+            start = None
+    return runs
+
+
+def find_columns(pieces, names):
+    """
+    Order 010 decision 7: where the frame's columns stand, so a narrower
+    building can be cut bay by bay and joined on column centres. A column is
+    a thin solid stretch in some storey that every storey has something solid
+    at: the bare grid, the framing, the finished frame, the services and the
+    finished wall all agree on it. Returned as centres, fractions across.
+    """
+    w = pieces[0].size[0]
+    runs = {name: column_runs(piece) for piece, name in zip(pieces, names)}
+    thin = sorted((a + b) / 2 for found in runs.values() for a, b in found if b - a + 1 <= w * COLUMN_THIN)
+    centres = []
+    for c in thin:
+        if all(any(a - COLUMN_MATCH <= c <= b + COLUMN_MATCH for a, b in found) for found in runs.values()):
+            if centres and c - centres[-1][-1] <= COLUMN_MATCH:
+                centres[-1].append(c)
+            else:
+                centres.append([c])
+    columns = [round(sum(group) / len(group) / w, 4) for group in centres]
+    if len(columns) < 3:
+        warn(f"storeys: only {len(columns)} column(s) found in every storey; buildings keep the whole tile")
+        return None
+    print(f"  columns: {len(columns)} at {', '.join(f'{c * w:.1f}' for c in columns)} px "
+          f"-> {len(columns) - 1} bays")
+    return columns
+
+
 def window_glow(tile):
     """
     Order 010 §4: the finished floor's glass, as a picture of its own. Glass
@@ -467,8 +527,7 @@ def window_glow(tile):
     lit = set()
     for y in range(h):
         for x in range(w):
-            r, g, b, a = px[x, y]
-            if a > TRIM_ALPHA and b > r + GLASS_MARGIN and b >= g and b > GLASS_FLOOR:
+            if px[x, y][3] > TRIM_ALPHA and is_glass(px[x, y]):
                 lit.add((x, y))
     # The light keeps the glass's own shading, pushed up, so the mullions and
     # reflections still read through it rather than one flat slab of colour.
@@ -593,12 +652,16 @@ def write_manifest(entries):
         "  /** Jib only: where its hook hung before it was taken off. */",
         "  readonly hookX?: number;",
         "  readonly hookY?: number;",
+        "  /** Storeys only: column centres, as fractions across, left to right. */",
+        "  readonly columns?: readonly number[];",
         "}",
         "",
         "export const ART_FILES: Readonly<Record<string, ArtFile>> = {",
     ]
     for name, meta in entries:
         extra = "".join(f", {key}: {meta[key]}" for key in ("groundLine", "pivotX", "beamY", "hookX", "hookY") if key in meta)
+        if "columns" in meta:
+            extra += ", columns: [" + ", ".join(str(c) for c in meta["columns"]) + "]"
         lines.append(f"  '{name}': {{ url: 'art/{name}.webp', w: {meta['w']}, h: {meta['h']}{extra} }},")
     lines.append("};")
     with open(MANIFEST, "w", encoding="utf-8") as handle:
@@ -654,8 +717,10 @@ def main():
                 extra.append((tower["mast"], tile))
                 head_centre[tower["head"]] = centre
 
+        columns = None
         if sheet.get("seam") == "stack":
             check_stack(pieces, names)
+            columns = find_columns(pieces, names)
         limit = sheet.get("maxTileAspect")
         if limit is not None:
             shape = pieces[0].size[1] / pieces[0].size[0]
@@ -679,6 +744,8 @@ def main():
             meta = {"w": piece.size[0], "h": piece.size[1]}
             if sheet.get("groundLine"):
                 meta["groundLine"] = ground_line(piece)
+            if columns:
+                meta["columns"] = columns
             if name in head_centre:
                 meta["pivotX"] = head_centre[name]
             if name == "crane-jib":
@@ -694,7 +761,10 @@ def main():
                     print(f"  windows: {panes} pane(s), {lit} px of glass")
                     glow_out = os.path.join(OUT, "floor-glow.webp")
                     glow.save(glow_out, "WEBP", quality=88, method=6)
-                    produced.append(("floor-glow", {"w": glow.size[0], "h": glow.size[1]}))
+                    glow_meta = {"w": glow.size[0], "h": glow.size[1]}
+                    if columns:
+                        glow_meta["columns"] = columns
+                    produced.append(("floor-glow", glow_meta))
                     contact.append(("floor-glow", glow))
             # A held piece is kept for review but must not ship in the build.
             folder = os.path.join(RAW, "held") if held else OUT

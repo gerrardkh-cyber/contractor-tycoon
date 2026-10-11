@@ -40,6 +40,26 @@ export interface Geometry {
   buildingTop: number;
   roofTop: number;
   mastTop: number;
+  /** Decision 010-8: how high the foundation stands above the ground. */
+  foundationHeight: number;
+  /** The crane's mast, on its centre line. */
+  craneX: number;
+  /** The highest point of the crane, head or jib. */
+  craneTop: number;
+  /** Building and crane head, left to right: what the camera keeps in frame. */
+  frameLeft: number;
+  frameRight: number;
+  /**
+   * Decision 010-7: which parts of the storey picture make up this building,
+   * as fractions across it, left to right; null where the floors are drawn.
+   */
+  slices: readonly TileSlice[] | null;
+}
+
+/** A stretch of a storey picture, from one fraction across it to another. */
+export interface TileSlice {
+  from: number;
+  to: number;
 }
 
 /** Reads the two per-floor tasks and reports which of six states a floor is in. */
@@ -69,43 +89,101 @@ export function bandStateOf(project: Project, stageId: string): BandState {
  * another. The sheet ends at the ground line: what is below it belongs to the
  * scene, not to any one site.
  */
-export function geometryFor(floors: number): Geometry {
+export function geometryFor(floors: number, typeId: string | null = null): Geometry {
   const s = theme.svg;
   const floorHeight = floorTileHeight();
+  const slices = baySlices(typeId);
+  const fullWidth = s.bodyRight - s.bodyLeft;
+  const bodyWidth = slices ? slices.reduce((sum, slice) => sum + (slice.to - slice.from), 0) * fullWidth : fullWidth;
+  const foundationHeight = floorHeight * s.foundationFloorShare;
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
-  const structureHeight = s.foundationHeight + bodyHeight + roofBandHeight(floorHeight);
-  // A drawn crane stands a fixed headroom over the roof. A pictured one is
-  // a head on whole lengths of mast: as many as it takes to clear the roof,
-  // so a house gets a short crane and a block a tall one (order 010 §2).
+  const structureHeight = foundationHeight + bodyHeight + roofBandHeight(floorHeight);
+
+  // Decision 010-1: the jib stands a floor and a half over the planned roof.
+  // A pictured crane gets there on whole lengths of mast, so a house gets a
+  // short crane and a block a tall one.
   const pictured = craneArtSizes();
+  const reach = structureHeight + floorHeight * s.craneClearanceFloors;
   const mastHeight = pictured
-    ? Math.ceil((structureHeight + s.craneArtClearance) / pictured.tileHeight) * pictured.tileHeight
-    : Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
-  const above = pictured ? Math.max(pictured.headHeight, pictured.jibAbove) : 0;
+    ? Math.ceil(reach / pictured.tileHeight) * pictured.tileHeight
+    : Math.max(s.craneMinHeight, reach);
+  const above = pictured ? Math.max(pictured.headHeight, pictured.jibAbove) : s.jibHeight;
   const height = Math.round(s.topPad + mastHeight + above);
   const groundLevel = height;
 
+  // The crane stands close on the building's right, the gap a share of its width.
+  const bodyRight = s.bodyLeft + bodyWidth;
+  const mastWidth = pictured ? s.craneMastWidth : s.mastWidth;
+  const craneX = bodyRight + bodyWidth * s.craneGapShare + mastWidth / 2;
+  const headRight = pictured ? craneX + (1 - pictured.headPivot) * pictured.headWidth : craneX + s.craneBaseWidth / 2;
+  const shortArm = pictured ? pictured.pivot * pictured.jibWidth : s.jibBack;
+
   return {
-    width: s.width,
+    width: craneX + Math.max(shortArm, headRight - craneX) + s.craneSidePad,
     height,
     groundLevel,
     structureHeight,
     floorHeight,
     bodyLeft: s.bodyLeft,
-    bodyRight: s.bodyRight,
-    bodyWidth: s.bodyRight - s.bodyLeft,
-    foundationTop: groundLevel - s.foundationHeight,
-    buildingTop: groundLevel - s.foundationHeight - bodyHeight,
+    bodyRight,
+    bodyWidth,
+    foundationTop: groundLevel - foundationHeight,
+    buildingTop: groundLevel - foundationHeight - bodyHeight,
     roofTop: groundLevel - structureHeight,
     mastTop: groundLevel - mastHeight,
+    foundationHeight,
+    craneX,
+    craneTop: groundLevel - mastHeight - above,
+    frameLeft: s.bodyLeft - s.foundationOverhang,
+    frameRight: headRight,
+    slices,
   };
+}
+
+/**
+ * Decision 010-7: the storey picture cut to a building's bays. Cuts fall on
+ * column centres, so two pieces meet as one whole column. Fewer bays than the
+ * picture has: the end bays from each side, so both ends keep their own
+ * columns and edges. More: the middle bays again, in order. Null when the
+ * floors are drawn or the picture's columns are not known.
+ */
+function baySlices(typeId: string | null): TileSlice[] | null {
+  const tile = floorsHaveArt() ? artFor('floor-complete') : null;
+  const columns = tile?.columns;
+  if (!columns || columns.length < 3) return null;
+  const edges = [0, ...columns.slice(1, -1), 1];
+  const bays: TileSlice[] = edges.slice(1).map((to, i) => ({ from: edges[i] ?? 0, to }));
+  const want = typeId === null ? undefined : theme.svg.baysByType[typeId];
+  if (want === undefined || want === bays.length) return [{ from: 0, to: 1 }];
+
+  const first = bays[0];
+  const last = bays[bays.length - 1];
+  if (!first || !last) return null;
+  let picked: TileSlice[];
+  if (want < bays.length) {
+    const left = Math.ceil(want / 2);
+    picked = [...bays.slice(0, left), ...bays.slice(bays.length - (want - left))];
+  } else {
+    const middle = bays.length > 2 ? bays.slice(1, -1) : [first];
+    picked = [first];
+    for (let i = 0; i < want - 2; i += 1) picked.push(middle[i % middle.length] ?? first);
+    picked.push(last);
+  }
+  // Bays that were neighbours in the picture stay one piece.
+  const joined: TileSlice[] = [];
+  for (const bay of picked) {
+    const previous = joined[joined.length - 1];
+    if (previous && Math.abs(previous.to - bay.from) < 1e-9) previous.to = bay.to;
+    else joined.push({ ...bay });
+  }
+  return joined;
 }
 
 interface FloorParts {
   group: SVGGElement;
   steel: SVGGElement;
-  /** The floor's picture, when the floor slots have them. */
-  art: SVGImageElement | null;
+  /** The floor's picture, in as many pieces as the building has slices; empty when drawn. */
+  art: SVGImageElement[];
   state: FloorState | null;
   raised: boolean;
 }
@@ -124,8 +202,8 @@ export interface BuildingView {
   dispose(): void;
 }
 
-export function createBuildingView(floors: number): BuildingView {
-  const g = geometryFor(floors);
+export function createBuildingView(floors: number, typeId: string | null = null): BuildingView {
+  const g = geometryFor(floors, typeId);
   const s = theme.svg;
 
   const svg = svgEl('svg', {
@@ -142,17 +220,20 @@ export function createBuildingView(floors: number): BuildingView {
   const floorArt = floorsHaveArt();
   toggleClass(svg, 'has-floor-art', floorArt);
 
-  const foundationArt = artImage(
+  // The slab's top edge is flat and sits where the drawn one does; the
+  // footings hang below it into the ground. Cut to the building's width with
+  // both ends kept (decision 010-7).
+  const foundationArt = cappedArt(
     'foundation',
     g.bodyLeft - s.foundationOverhang,
     g.bodyWidth + s.foundationOverhang * 2,
+    s.bodyRight - s.bodyLeft + s.foundationOverhang * 2,
+    g.foundationTop,
+    null,
     'bld-art bld-foundation-art',
   );
   if (foundationArt) {
-    // The slab's top edge is flat and sits where the drawn one does; the
-    // footings hang below it into the ground.
-    foundationArt.node.setAttribute('y', String(g.foundationTop));
-    svg.append(foundationArt.node);
+    svg.append(foundationArt);
     svg.classList.add('has-foundation-art');
   }
 
@@ -161,7 +242,7 @@ export function createBuildingView(floors: number): BuildingView {
     x: g.bodyLeft - s.foundationOverhang,
     y: g.foundationTop,
     width: g.bodyWidth + s.foundationOverhang * 2,
-    height: s.foundationHeight,
+    height: g.foundationHeight,
   });
   svg.append(foundation);
 
@@ -186,20 +267,21 @@ export function createBuildingView(floors: number): BuildingView {
 
   const roof = buildRoof(g);
   svg.append(roof.group);
-  const roofArt = artImage(
+  // A band one floor deep on the top floor, showing the picture's top: the
+  // parapet and railing, not a second storey of plain wall under them. Cut
+  // to the building's width with both railing ends kept (decision 010-7).
+  const band = roofBandHeight(g.floorHeight);
+  const roofArt = cappedArt(
     'roof',
     g.bodyLeft - s.envelopeInset,
     g.bodyWidth + s.envelopeInset * 2,
+    s.bodyRight - s.bodyLeft + s.envelopeInset * 2,
+    g.buildingTop - band,
+    band,
     'bld-art bld-roof-art',
   );
   if (roofArt) {
-    // A band one floor deep on the top floor, showing the picture's top: the
-    // parapet and railing, not a second storey of plain wall under them.
-    const band = roofBandHeight(g.floorHeight);
-    roofArt.node.setAttribute('y', String(g.buildingTop - band));
-    roofArt.node.setAttribute('height', String(band));
-    roofArt.node.setAttribute('preserveAspectRatio', 'xMidYMin slice');
-    svg.append(roofArt.node);
+    svg.append(roofArt);
     svg.classList.add('has-roof-art');
   }
 
@@ -246,9 +328,9 @@ export function createBuildingView(floors: number): BuildingView {
     setBandClass(envelope, 'bld-envelope', bandStateOf(project, 'weatherproof'));
     setBandClass(roof.group, 'bld-roof', bandStateOf(project, 'final'));
     if (foundationArt) {
-      setBandClass(foundationArt.node, 'bld-art bld-foundation-art', bandStateOf(project, 'foundation'));
+      setBandClass(foundationArt, 'bld-art bld-foundation-art', bandStateOf(project, 'foundation'));
     }
-    if (roofArt) setBandClass(roofArt.node, 'bld-art bld-roof-art', bandStateOf(project, 'final'));
+    if (roofArt) setBandClass(roofArt, 'bld-art bld-roof-art', bandStateOf(project, 'final'));
 
     const wet = state.weather.raining && !project.riskyPourActive;
     if (wet !== raining) {
@@ -368,6 +450,8 @@ function craneArtSizes(): {
   tileHeight: number;
   headWidth: number;
   headHeight: number;
+  /** Where the mast meets the head, as a fraction across the head picture. */
+  headPivot: number;
   pivot: number;
   jibWidth: number;
   jibHeight: number;
@@ -390,6 +474,7 @@ function craneArtSizes(): {
     tileHeight: mast.h * unit,
     headWidth: head.w * unit,
     headHeight: head.h * unit,
+    headPivot: head.pivotX ?? 0.5,
     pivot,
     jibWidth,
     jibHeight,
@@ -397,23 +482,72 @@ function craneArtSizes(): {
   };
 }
 
-/** An image slot laid into the drawing, at the picture's own proportions. */
-function artImage(piece: ArtPiece, x: number, width: number, className: string): {
-  node: SVGImageElement;
-  height: number;
-} | null {
-  const file = artFor(piece);
-  if (!file) return null;
-  const height = width * (file.h / file.w);
-  const node = svgEl('image', {
-    class: className,
-    href: file.url,
+/**
+ * One stretch of a picture laid into the drawing: the picture's columns
+ * `from`..`to` (pixels) shown across `width` units at `x`, `height` units
+ * tall from its top. A nested viewport does the cutting. Each piece runs a
+ * hair past its right edge, under its neighbour, so no seam shows.
+ */
+function pictureSlice(
+  file: ArtFile,
+  from: number,
+  to: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  imageClass: string,
+): { frame: SVGSVGElement; image: SVGImageElement } {
+  const unitsPerPx = width / (to - from);
+  const extra = theme.svg.tileOverlap;
+  const frame = svgEl('svg', {
     x,
-    width,
+    y,
+    width: width + extra,
     height,
+    viewBox: `${from} 0 ${(to - from) + extra / unitsPerPx} ${height / unitsPerPx}`,
     preserveAspectRatio: 'none',
   });
-  return { node, height };
+  const image = svgEl('image', {
+    class: imageClass,
+    href: file.url,
+    width: file.w,
+    height: file.h,
+    preserveAspectRatio: 'none',
+  });
+  frame.append(image);
+  return { frame, image };
+}
+
+/**
+ * A foundation or roof picture cut to a building's width with both ends kept
+ * (decision 010-7): the left half of the width from the picture's left end,
+ * the right half from its right end, at the scale the whole picture has
+ * across a whole-picture building (`fullWidth`). A narrow building loses
+ * the middle; a wide one shows some of it twice. Height null keeps the
+ * picture's own proportions; a number shows that much of its top.
+ */
+function cappedArt(
+  piece: ArtPiece,
+  x: number,
+  width: number,
+  fullWidth: number,
+  y: number,
+  height: number | null,
+  className: string,
+): SVGGElement | null {
+  const file = artFor(piece);
+  if (!file) return null;
+  const unitsPerPx = fullWidth / file.w;
+  const shown = height ?? file.h * unitsPerPx;
+  const half = width / 2;
+  const halfPx = half / unitsPerPx;
+  const group = svgEl('g', { class: className });
+  group.append(
+    pictureSlice(file, 0, halfPx, x, y, half, shown, 'bld-art-piece').frame,
+    pictureSlice(file, file.w - halfPx, file.w, x + half, y, half, shown, 'bld-art-piece').frame,
+  );
+  return group;
 }
 
 /** The top edge of a floor, in viewBox units. */
@@ -563,44 +697,47 @@ function buildFloor(g: Geometry, floor: number): FloorParts {
     }),
   );
 
-  // With floor pictures, one image per floor shows whichever state it is in.
-  let art: SVGImageElement | null = null;
-  if (floorsHaveArt()) {
-    art = svgEl('image', {
-      class: 'floor-art',
-      x: g.bodyLeft,
-      y,
-      width: g.bodyWidth,
-      height: g.floorHeight,
-      preserveAspectRatio: 'none',
-    });
-    group.insertBefore(art, group.firstChild);
+  // With floor pictures, the floor shows whichever state it is in, cut to
+  // the building's bays (decision 010-7); the picture swaps per state.
+  const art: SVGImageElement[] = [];
+  const tile = floorsHaveArt() ? artFor('floor-complete') : null;
+  if (tile) {
+    const slices = g.slices ?? [{ from: 0, to: 1 }];
+    const pieces = laySlices(tile, slices, g, y, 'floor-art');
+    for (const piece of [...pieces].reverse()) group.insertBefore(piece.frame, group.firstChild);
+    art.push(...pieces.map((piece) => piece.image));
     // After dark a finished floor is lived in. With a window mask (order 010
     // §4: the glass picked out of the finished-floor picture) only the
     // windows light; without one, a warm wash over the whole floor.
     const glow = artFor('floor-glow');
-    group.append(
-      glow
-        ? svgEl('image', {
-            class: 'floor-glow is-art',
-            href: glow.url,
-            x: g.bodyLeft,
-            y,
-            width: g.bodyWidth,
-            height: g.floorHeight,
-            preserveAspectRatio: 'none',
-          })
-        : svgEl('rect', {
-            class: 'floor-glow',
-            x: g.bodyLeft,
-            y,
-            width: g.bodyWidth,
-            height: g.floorHeight,
-          }),
-    );
+    if (glow) {
+      for (const piece of laySlices(glow, slices, g, y, 'floor-glow is-art')) group.append(piece.frame);
+    } else {
+      group.append(
+        svgEl('rect', { class: 'floor-glow', x: g.bodyLeft, y, width: g.bodyWidth, height: g.floorHeight }),
+      );
+    }
   }
 
   return { group, steel, art, state: null, raised: false };
+}
+
+/** A storey picture laid across the building, slice after slice. */
+function laySlices(
+  file: ArtFile,
+  slices: readonly TileSlice[],
+  g: Geometry,
+  y: number,
+  imageClass: string,
+): { frame: SVGSVGElement; image: SVGImageElement }[] {
+  const fullWidth = theme.svg.bodyRight - theme.svg.bodyLeft;
+  let x = g.bodyLeft;
+  return slices.map((slice) => {
+    const width = (slice.to - slice.from) * fullWidth;
+    const piece = pictureSlice(file, slice.from * file.w, slice.to * file.w, x, y, width, g.floorHeight, imageClass);
+    x += width;
+    return piece;
+  });
 }
 
 function applyFloorState(
@@ -612,10 +749,8 @@ function applyFloorState(
 ): void {
   if (parts.state !== next) {
     setAttr(parts.group, 'class', `bld-floor is-${next}`);
-    if (parts.art) {
-      const file = artFor(FLOOR_PIECE[next]);
-      if (file) setAttr(parts.art, 'href', file.url);
-    }
+    const file = parts.art.length > 0 ? artFor(FLOOR_PIECE[next]) : null;
+    if (file) for (const image of parts.art) setAttr(image, 'href', file.url);
     // Topping out: the floor rises into place and settles.
     if (next === 'done' && parts.state !== null && !parts.raised) {
       parts.raised = true;
@@ -675,7 +810,7 @@ function buildCrane(g: Geometry): {
 } {
   const s = theme.svg;
   const group = svgEl('g', { class: 'bld-crane is-idle' });
-  const x = s.craneX;
+  const x = g.craneX;
   const half = s.mastWidth / 2;
   const top = g.mastTop;
 
@@ -783,7 +918,7 @@ function buildCrane(g: Geometry): {
           y: g.groundLevel - (i + 1) * tileHeight,
           width: s.craneMastWidth,
           // A hair of overlap so stacked tiles never show a hairline gap.
-          height: tileHeight + s.craneTileOverlap,
+          height: tileHeight + s.tileOverlap,
           preserveAspectRatio: 'none',
         }),
       );
@@ -908,7 +1043,7 @@ function renderPunch(layer: SVGGElement, g: Geometry, open: number, previous: nu
 }
 
 function badgeYFor(stageId: string, g: Geometry): number {
-  if (stageId === 'foundation') return g.foundationTop + theme.svg.foundationHeight / 2;
+  if (stageId === 'foundation') return g.foundationTop + g.foundationHeight / 2;
   if (stageId === 'final' || stageId === 'fire' || stageId === 'weatherproof') {
     return g.roofTop + theme.svg.roofHeight / 2;
   }

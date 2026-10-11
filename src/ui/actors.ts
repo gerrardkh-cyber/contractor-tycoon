@@ -56,10 +56,15 @@ export function createActors(g: Geometry): Actors {
     'aria-hidden': 'true',
   });
 
-  // The hut the crew shelters in when it rains.
-  svg.append(hut(g));
-
   const workerArt = figureArt(WORKER_POSES, g);
+  // How tall one of the crew stands: every distance the crew covers is in these.
+  const person = workerArt ? workerArt.height : s.workerHeight;
+  svg.style.setProperty('--walk-span', `${(person * s.walkSpanPeople).toFixed(1)}px`);
+  svg.style.setProperty('--to-hut', `${(-person * s.shelterPeople).toFixed(1)}px`);
+
+  // The hut the crew shelters in when it rains.
+  svg.append(hut(g, person));
+
   toggleClass(svg, 'has-worker-art', workerArt !== null);
   toggleClass(svg, 'has-inspector-art', allHaveArt(INSPECTOR_POSES));
   toggleClass(svg, 'has-truck-art', artFor('truck') !== null);
@@ -67,7 +72,7 @@ export function createActors(g: Geometry): Actors {
   const ground = svgEl('g', { class: 'actor-ground' });
   const climbers = svgEl('g', { class: 'actor-climbers' });
   const truck = buildTruck(g);
-  const inspector = buildInspector(g);
+  const inspector = buildInspector(g, person);
   svg.append(truck.group, ground, climbers, inspector.group);
 
   const crew: Worker[] = [];
@@ -144,9 +149,10 @@ export function createActors(g: Geometry): Actors {
 
     clear(ground);
     crew.length = 0;
-    const span = g.bodyRight - g.bodyLeft + s.workerHeight * 4;
+    const margin = person * s.crewMarginPeople;
+    const span = g.bodyRight - g.bodyLeft + margin * 2;
     for (let i = 0; i < want; i += 1) {
-      const base = g.bodyLeft - s.workerHeight * 2 + (span / want) * i;
+      const base = g.bodyLeft - margin + (span / want) * i;
       const group = walker('worker', base, g.groundLevel, i, workerArt);
       crew.push({ group, base });
       ground.append(group);
@@ -281,11 +287,11 @@ function walker(
 }
 
 /** The site office: where the crew goes when it rains. */
-function hut(g: Geometry): SVGGElement {
+function hut(g: Geometry, person: number): SVGGElement {
   const s = theme.scene;
-  const w = s.workerHeight * 2.4;
-  const h = s.workerHeight * 1.3;
-  const x = g.bodyLeft - w - s.workerHeight;
+  const h = person * s.hutHeightPeople;
+  const w = h * s.hutAspect;
+  const x = g.bodyLeft - w - person;
   const y = g.groundLevel - h;
   return svgEl('g', { class: 'actor-hut' }, [
     svgEl('rect', { class: 'hut-body', x, y, width: w, height: h }),
@@ -344,17 +350,20 @@ function buildTruck(g: Geometry): { group: SVGGElement } {
 }
 
 /** The inspector: a figure with a clipboard and a verdict bubble. */
-function buildInspector(g: Geometry): { group: SVGGElement; verdict(passed: boolean): void } {
+function buildInspector(g: Geometry, person: number): { group: SVGGElement; verdict(passed: boolean): void } {
   const s = theme.scene;
   const h = s.inspectorHeight;
   const group = svgEl('g', { class: 'actor-inspector' });
   group.style.setProperty('--walk-ms', `${s.inspectorWalkMs}ms`);
   group.style.setProperty('--stay-ms', `${s.inspectorStayMs}ms`);
-  // The figure starts off the right edge and walks to the front of the site.
-  group.style.setProperty('--walk-to', `${(g.bodyLeft - h * 1.6 - g.width).toFixed(1)}px`);
+  // The inspector walks in from the right to stand in front of the site; the
+  // walk and the stop are in people, so they shrink with the figures.
+  const stand = g.bodyLeft - person * s.inspectorStandPeople;
+  const start = stand + person * s.inspectorWalkPeople;
+  group.style.setProperty('--walk-to', `${(stand - start).toFixed(1)}px`);
 
   const art = figureArt(INSPECTOR_POSES, g);
-  const figure = walker('inspector-figure', g.width, g.groundLevel, 0, art);
+  const figure = walker('inspector-figure', start, g.groundLevel, 0, art);
   figure.append(
     svgEl('rect', {
       class: 'inspector-board',
@@ -368,7 +377,7 @@ function buildInspector(g: Geometry): { group: SVGGElement; verdict(passed: bool
   // Drawn in the group's own space: the whole group is what walks, so a
   // final-position coordinate here would end up one walk too far left.
   const bubble = svgEl('g', { class: 'inspector-bubble' });
-  const cx = g.width;
+  const cx = start;
   // The bubble floats over the head of whichever figure is walking in.
   const cy = art ? g.groundLevel - art.height - s.bubbleSize * s.bubbleOverHead : g.groundLevel - h * 1.9;
   const mark = svgEl('path', { class: 'bubble-mark', d: theme.svg.badgeTick });

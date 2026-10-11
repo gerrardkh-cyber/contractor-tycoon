@@ -229,18 +229,14 @@ ${phase('night')}
 .actors .actor-body .actor-arm{stroke:${c.steel}}
 .actors .actor-body .actor-torso{stroke:${c.blueprint}}
 .actors .actor-legs.is-b{opacity:0}
-.actors .actor-walk{
-  animation:walk-span 8s ${easing.inOut} infinite alternate;
-  --walk-span:${(sc.workerHeight * 2.4).toFixed(1)}px;
-}
+.actors .actor-walk{animation:walk-span 8s ${easing.inOut} infinite alternate}
 .actors .actor-legs.is-a{animation:frame-a ${sc.stepFrameMs * 2}ms steps(1) infinite}
 .actors .actor-legs.is-b{animation:frame-b ${sc.stepFrameMs * 2}ms steps(1) infinite}
-.actors.is-resting .actor-walk,
+.actors:not(.has-worker-art).is-resting .actor-walk,
 .actors.is-resting .actor-legs{animation:none}
 .actors.is-resting .actor-legs.is-b{opacity:0}
 .actors.is-resting .worker .actor-body{transform:translateY(${sc.workerHeight * 0.35}px) scaleY(.72)}
 /* Rain: the crew runs for the site office at the left and goes inside. */
-.actors .worker{--to-hut:${(-sc.workerHeight * 4).toFixed(1)}px}
 .actors.is-sheltering .worker .actor-walk{
   animation:none;transform:translateX(var(--to-hut,0));opacity:0;
 }
@@ -250,7 +246,7 @@ ${phase('night')}
 .actors .actor-arm{transform-box:fill-box;transform-origin:center}
 .actors.is-cheering .actor-arm{transform:rotate(${sc.cheerArmDeg}deg)}
 /* Rubbing out a punch item: the arm works, the figure stays put. */
-.actors.is-fixing .is-climber .actor-walk{animation:none}
+.actors:not(.has-worker-art).is-fixing .is-climber .actor-walk{animation:none}
 .actors.is-fixing .is-climber .actor-arm{
   animation:fix-arm ${sc.stepFrameMs * 2}ms ${easing.inOut} infinite alternate;
 }
@@ -276,15 +272,21 @@ ${phase('night')}
 .actors .worker .pose-walk-b{animation:frame-b ${sc.stepFrameMs * 2}ms steps(1) infinite}
 .actors .worker.is-climber .actor-pose{animation:none;opacity:0}
 .actors .worker.is-climber .pose-carry{opacity:1}
-.actors.is-fixing .is-climber .actor-face{animation:none}
 .actors.is-resting .worker .actor-pose{animation:none;opacity:0}
 .actors.is-resting .worker .pose-sit{opacity:1}
-.actors.is-resting .worker .actor-face{animation:none}
 .actors.is-sheltering .worker .actor-pose{animation:none;opacity:0}
 .actors.is-sheltering .worker .pose-run{opacity:1}
 .actors.is-sheltering .worker .actor-face{animation:none;transform:scaleX(-1)}
 .actors.is-cheering .worker .actor-pose{animation:none;opacity:0}
 .actors.is-cheering .worker .pose-cheer{opacity:1}
+/*
+ * Decision 010-4: walking, running and carrying move; cheering and sitting
+ * stand still where they are. Punch work keeps the carrying pose, so it moves.
+ */
+.actors.has-worker-art.is-resting .worker .actor-walk,
+.actors.has-worker-art.is-resting .worker .actor-face,
+.actors.has-worker-art.is-cheering .worker .actor-walk,
+.actors.has-worker-art.is-cheering .worker .actor-face{animation-play-state:paused}
 /* The inspector walks in facing the site, checks, and walks back out. */
 .actors.has-inspector-art .inspector-figure .actor-walk{animation:none}
 .actors .inspector-figure .actor-face{animation:none;transform:scaleX(-1)}

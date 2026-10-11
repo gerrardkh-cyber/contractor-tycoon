@@ -47,6 +47,8 @@ export interface Scene {
 export interface SceneHost {
   /** The HUD figure money flies to. */
   cashAnchor(): Element | null;
+  /** The HUD bar, whose bottom edge the camera keeps clear of. */
+  hud(): Element | null;
 }
 
 interface Plot {
@@ -97,6 +99,23 @@ export function createScene(host: SceneHost): Scene {
     });
   };
   globalThis.addEventListener('resize', onResize);
+  // Decision 010-6: the HUD is measured, not assumed, and measured again
+  // whenever it changes size - a rotation, a language, the guide's padding.
+  const hudWatch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize);
+  let watchedHud: Element | null = null;
+
+  /** Where the camera's room starts: under the HUD as it stands, plus a margin. */
+  function hudBottom(): number {
+    const hud = host.hud();
+    if (!hud) return theme.scene.hudRoomPx;
+    if (hud !== watchedHud) {
+      hudWatch?.disconnect();
+      hudWatch?.observe(hud);
+      watchedHud = hud;
+    }
+    const top = node.getBoundingClientRect().top;
+    return hud.getBoundingClientRect().bottom - top + theme.scene.hudClearPx;
+  }
 
   /**
    * The camera. One scale for the whole row, so the buildings stay to each
@@ -124,7 +143,7 @@ export function createScene(host: SceneHost): Scene {
     // the tighter of the two, so nothing resizes under the player.
     const withCard = 1 - sc.detailMaxRatio - (sc.tabBarHeight + sc.plotGapPx) / height;
     const groundY = height * Math.min(sc.groundRatio, withCard);
-    const room = groundY - sc.hudRoomPx;
+    const room = groundY - hudBottom();
 
     let next: number;
     if (framed === 0) {
@@ -141,11 +160,14 @@ export function createScene(host: SceneHost): Scene {
       next = (share * height) / structure;
       // No more sky above it than the rule allows...
       next = Math.max(next, (groundY - sc.maxSkyShare * height) / structure);
-      // ...but never out through the top of the room.
-      next = Math.min(next, room / structure);
-      // And the building itself has to fit the window across.
-      const body = theme.svg.bodyRight - theme.svg.bodyLeft + theme.svg.foundationOverhang * 2;
-      next = Math.min(next, (width - sc.plotGapPx * 2) / body);
+      // ...but the building and its crane, head and all, stay in frame
+      // (decision 010-1): the tallest crane clears the HUD...
+      const sites = [...plots.values()].map((plot) => plot.building.geometry);
+      const crane = Math.max(structure, ...sites.map((g) => g.groundLevel - g.craneTop));
+      next = Math.min(next, room / crane);
+      // ...and the widest site, crane head included, fits the window across.
+      const span = Math.max(0, ...sites.map((g) => g.frameRight - g.frameLeft));
+      if (span > 0) next = Math.min(next, (width - sc.plotGapPx * 2) / span);
     }
     next = Math.max(next, sc.minPlotWidthPx / unitWidth);
     if (Math.abs(next - scale) < 0.01) return;
@@ -190,7 +212,7 @@ export function createScene(host: SceneHost): Scene {
 
   function sizePlot(plot: Plot): void {
     const g = plot.building.geometry;
-    const width = Math.round(theme.svg.width * scale);
+    const width = Math.round(g.width * scale);
     plot.node.style.width = `${width}px`;
     plot.building.node.style.width = `${width}px`;
     plot.building.node.style.height = `${Math.round(g.height * scale)}px`;
@@ -312,7 +334,7 @@ export function createScene(host: SceneHost): Scene {
 
   function buildPlot(project: Project): Plot {
     const type = data.requireProjectType(project.typeId);
-    const building = createBuildingView(type.floors);
+    const building = createBuildingView(type.floors, type.id);
     const actors = createActors(building.geometry);
     const node = el('div', { class: 'plot', 'data-guide': 'site-plot', role: 'button' }, [
       building.node,
@@ -357,10 +379,10 @@ export function createScene(host: SceneHost): Scene {
   function bringIntoView(projectId: string | null, instant = false): void {
     const plot = projectId === null ? null : plots.get(projectId);
     if (!plot) return;
-    // The building's middle, not the plot's: zoomed in on a house, the crane
-    // beside it is what goes off the edge, not half the house.
-    const s = theme.svg;
-    const middle = ((s.bodyLeft + s.bodyRight) / 2) * scale;
+    // The middle of what the camera frames - the building and the crane head
+    // beside it - not of the plot, whose hut and jib may run off the edges.
+    const g = plot.building.geometry;
+    const middle = ((g.frameLeft + g.frameRight) / 2) * scale;
     const left = plot.node.offsetLeft + middle - row.clientWidth / 2;
     row.scrollTo({
       left: Math.max(0, left),
@@ -413,6 +435,7 @@ export function createScene(host: SceneHost): Scene {
 
   function dispose(): void {
     globalThis.removeEventListener('resize', onResize);
+    hudWatch?.disconnect();
     if (frame) cancelAnimationFrame(frame);
     for (const plot of plots.values()) {
       plot.building.dispose();

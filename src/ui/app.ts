@@ -167,6 +167,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   // the lot signs, which it redraws on request.
   const scene: Scene = createScene({
     cashAnchor: () => document.querySelector('[data-guide="cash"]'),
+    hud: () => document.querySelector('.topbar'),
   });
   scene.onSelect(() => render());
 

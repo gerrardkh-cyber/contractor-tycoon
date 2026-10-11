@@ -85,6 +85,8 @@ const svg = {
   groundStroke: 1.4,
   foundationHeight: 11,
   foundationOverhang: 7,
+  /** Decision 010-8: the foundation stands this share of a floor high. */
+  foundationFloorShare: 0.4,
 
   /** The building body. */
   bodyLeft: 36,
@@ -118,18 +120,29 @@ const svg = {
   roofInset: 5,
   parapetHeight: 2.5,
 
-  /** Tower crane, standing to the right of the building. */
-  craneX: 143,
+  /**
+   * Decision 010-7: how many bays (column to column) of the storey picture a
+   * building of each type is, cut at column centres. A type not listed takes
+   * the whole picture.
+   */
+  baysByType: { repair: 2, house: 2, lowrise: 4 } as Readonly<Record<string, number>>,
+  /** Overlap between pieces of one picture laid side by side or stacked, so no hairline shows. */
+  tileOverlap: 0.3,
+
+  /**
+   * Tower crane, standing to the right of the building. Decision 010-1: the
+   * gap to it is this share of the building's width.
+   */
+  craneGapShare: 0.15,
+  /** Room left in the drawing past the crane's reach on the right. */
+  craneSidePad: 4,
   craneBaseWidth: 18,
   /**
    * How wide the pictured mast stands; the head and its lengths of mast are
    * scaled to match, so this sets the whole pictured crane's size.
    */
   craneMastWidth: 8,
-  /** How far a pictured crane's mast must at least clear the roof. */
-  craneArtClearance: 4,
-  /** Overlap between stacked mast lengths, so no hairline shows between them. */
-  craneTileOverlap: 0.3,
+
   craneBaseHeight: 5,
   mastWidth: 7,
   mastRungGap: 7,
@@ -150,8 +163,8 @@ const svg = {
   /** How much of the cable the bob takes up while the crane works. */
   hookLiftShare: 0.3,
   loadSize: 7,
-  /** How far the mast rises above the topmost floor. */
-  craneHeadroom: 26,
+  /** Decision 010-1: the jib stands this many floors over the planned roof. */
+  craneClearanceFloors: 1.5,
   craneMinHeight: 52,
 
   /** Punch dots ride above the roof. */
@@ -382,7 +395,10 @@ const scene = {
   maxSkyShare: 0.5,
   zoomMs: 1000,
   /** The band at the top the HUD sits in, kept clear of the skyline. */
+  /** Room the HUD takes until it can be measured. */
   hudRoomPx: 56,
+  /** Decision 010-6: the camera keeps this much clear under the HUD as measured. */
+  hudClearPx: 8,
   /** Below this the scene stops shrinking and the row scrolls instead. */
   minPlotWidthPx: 210,
   /** An empty lot is a hoarding, not a building: it needs less room. */
@@ -439,6 +455,21 @@ const scene = {
    */
   figureFloorShare: 0.4,
   truckFloorShare: 0.85,
+  /**
+   * Decision 010-3: everything about the crew measured in the crew's own
+   * height, so it scales with the figures. Hut: 1.5 people high, at the
+   * shape it always had. Walk: how far one figure strolls each way. Shelter:
+   * how far toward the hut the crew runs in the rain. Crew margin: how far
+   * past each end of the building the crew spreads. Inspector: where they
+   * stop in front of the site, and how far they walk to get there.
+   */
+  hutHeightPeople: 1.5,
+  hutAspect: 1.85,
+  walkSpanPeople: 2.4,
+  shelterPeople: 4,
+  crewMarginPeople: 2,
+  inspectorStandPeople: 1.6,
+  inspectorWalkPeople: 15,
   inspectorWalkMs: 2400,
   inspectorStayMs: 3600,
   bubbleSize: 13,

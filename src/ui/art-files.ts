@@ -16,15 +16,17 @@ export interface ArtFile {
   /** Jib only: where its hook hung before it was taken off. */
   readonly hookX?: number;
   readonly hookY?: number;
+  /** Storeys only: column centres, as fractions across, left to right. */
+  readonly columns?: readonly number[];
 }
 
 export const ART_FILES: Readonly<Record<string, ArtFile>> = {
-  'floor-glow': { url: 'art/floor-glow.webp', w: 480, h: 71 },
-  'floor-complete': { url: 'art/floor-complete.webp', w: 480, h: 71 },
-  'floor-services': { url: 'art/floor-services.webp', w: 480, h: 71 },
-  'floor-framed': { url: 'art/floor-framed.webp', w: 480, h: 71 },
-  'floor-framing': { url: 'art/floor-framing.webp', w: 480, h: 71 },
-  'floor-grid': { url: 'art/floor-grid.webp', w: 480, h: 71 },
+  'floor-glow': { url: 'art/floor-glow.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
+  'floor-complete': { url: 'art/floor-complete.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
+  'floor-services': { url: 'art/floor-services.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
+  'floor-framed': { url: 'art/floor-framed.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
+  'floor-framing': { url: 'art/floor-framing.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
+  'floor-grid': { url: 'art/floor-grid.webp', w: 480, h: 71, columns: [0.0094, 0.3312, 0.667, 0.9885] },
   'foundation': { url: 'art/foundation.webp', w: 480, h: 218 },
   'roof': { url: 'art/roof.webp', w: 480, h: 212 },
   'crane-head': { url: 'art/crane-head.webp', w: 132, h: 139, pivotX: 0.4167 },
