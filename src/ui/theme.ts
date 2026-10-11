@@ -113,12 +113,16 @@ const svg = {
   envelopeInset: 2.6,
   envelopeStroke: 2,
   roofHeight: 7,
+  /** How many floors deep the band a roof picture sits in is. */
+  roofArtFloors: 0.9,
   roofInset: 5,
   parapetHeight: 2.5,
 
   /** Tower crane, standing to the right of the building. */
   craneX: 143,
   craneBaseWidth: 18,
+  /** How wide the crane tower picture stands, whatever the mast's height. */
+  craneArtWidth: 15,
   craneBaseHeight: 5,
   mastWidth: 7,
   mastRungGap: 7,
@@ -190,6 +194,8 @@ const size = {
   iconSize: 15,
   iconSizeLarge: 20,
   iconSizeTitle: 132,
+  /** How far below the screen's middle the title crane's top must stay. */
+  titleCraneClearPx: 190,
 
   pageBottomPad: 64,
   statMinWidth: 112,
@@ -353,6 +359,15 @@ const scene = {
    */
   maxBuildingRatio: 1,
   referenceFloors: 8,
+  /**
+   * The camera (order 009 §6). A house fills this much of the window; a block
+   * of `referenceFloors` fills the room above the ground; the sky above the
+   * tallest building never takes more than `maxSkyShare`; a change of framing
+   * takes `zoomMs`.
+   */
+  houseShare: 0.38,
+  maxSkyShare: 0.5,
+  zoomMs: 1000,
   /** The band at the top the HUD sits in, kept clear of the skyline. */
   hudRoomPx: 56,
   /** Below this the scene stops shrinking and the row scrolls instead. */

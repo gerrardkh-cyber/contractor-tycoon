@@ -10,6 +10,17 @@ export interface ArtFile {
   readonly h: number;
   /** Ground only: the dirt line, in image pixels from the top. */
   readonly groundLine?: number;
+  /** Jib only: where it sits on the tower, as fractions across and down. */
+  readonly pivotX?: number;
+  readonly beamY?: number;
 }
 
-export const ART_FILES: Readonly<Record<string, ArtFile>> = {};
+export const ART_FILES: Readonly<Record<string, ArtFile>> = {
+  'foundation': { url: 'art/foundation.webp', w: 480, h: 218 },
+  'roof': { url: 'art/roof.webp', w: 480, h: 213 },
+  'crane-tower': { url: 'art/crane-tower.webp', w: 134, h: 596 },
+  'crane-jib': { url: 'art/crane-jib.webp', w: 855, h: 303, pivotX: 0.2187, beamY: 0.4224 },
+  'skyline-far': { url: 'art/skyline-far.webp', w: 1920, h: 240 },
+  'skyline-near': { url: 'art/skyline-near.webp', w: 1584, h: 482 },
+  'ground': { url: 'art/ground.webp', w: 1584, h: 234, groundLine: 37 },
+};

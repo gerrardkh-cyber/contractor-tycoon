@@ -72,7 +72,7 @@ export function geometryFor(floors: number): Geometry {
   const s = theme.svg;
   const floorHeight = floorTileHeight();
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
-  const structureHeight = s.foundationHeight + bodyHeight + s.roofHeight + s.parapetHeight;
+  const structureHeight = s.foundationHeight + bodyHeight + roofBandHeight(floorHeight);
   const mastHeight = Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
   const height = Math.round(s.topPad + mastHeight);
   const groundLevel = height;
@@ -185,8 +185,12 @@ export function createBuildingView(floors: number): BuildingView {
     'bld-art bld-roof-art',
   );
   if (roofArt) {
-    // Its bottom edge is flat and sits on the top floor.
-    roofArt.node.setAttribute('y', String(g.buildingTop - roofArt.height));
+    // A band one floor deep on the top floor, showing the picture's top: the
+    // parapet and railing, not a second storey of plain wall under them.
+    const band = roofBandHeight(g.floorHeight);
+    roofArt.node.setAttribute('y', String(g.buildingTop - band));
+    roofArt.node.setAttribute('height', String(band));
+    roofArt.node.setAttribute('preserveAspectRatio', 'xMidYMin slice');
     svg.append(roofArt.node);
     svg.classList.add('has-roof-art');
   }
@@ -337,6 +341,16 @@ function floorTileHeight(): number {
   return tile ? (s.bodyRight - s.bodyLeft) * (tile.h / tile.w) : s.floorHeight;
 }
 
+/**
+ * How tall the roof stands above the top floor. A roof picture gets a band
+ * one floor deep and shows its top part in it - the parapet and the railing -
+ * because at its own proportions it would stand as tall as two floors.
+ */
+function roofBandHeight(floorHeight: number): number {
+  const s = theme.svg;
+  return artFor('roof') ? floorHeight * s.roofArtFloors : s.roofHeight + s.parapetHeight;
+}
+
 /** An image slot laid into the drawing, at the picture's own proportions. */
 function artImage(piece: ArtPiece, x: number, width: number, className: string): {
   node: SVGImageElement;
@@ -403,8 +417,10 @@ function buildFloor(g: Geometry, floor: number): FloorParts {
   );
 
   // Framing: steel that fills in from the left as the crew works across.
+  // Grows from its own left edge: the stylesheet sets transform-box to the
+  // group's box, so an origin written in drawing units here would land that
+  // far to the right of it - invisible small, plain once the camera zooms in.
   const steel = svgEl('g', { class: 'floor-steel' });
-  steel.style.transformOrigin = `${g.bodyLeft}px ${y + g.floorHeight / 2}px`;
   const bays = 4;
   for (let bay = 0; bay <= bays; bay += 1) {
     const x = g.bodyLeft + (g.bodyWidth / bays) * bay;
@@ -721,8 +737,10 @@ function buildCrane(g: Geometry): {
   const jibFile = artFor('crane-jib');
   const art = towerFile !== null && jibFile !== null;
   if (art) {
+    // A tower is as wide as a tower whatever its height: the picture keeps
+    // a fixed width and stretches up the mast, rather than fattening with it.
     const mastHeight = g.groundLevel - top;
-    const towerWidth = mastHeight * (towerFile.w / towerFile.h);
+    const towerWidth = s.craneArtWidth;
     group.insertBefore(
       svgEl('image', {
         class: 'crane-art',
@@ -735,17 +753,23 @@ function buildCrane(g: Geometry): {
       }),
       slew,
     );
-    const jibWidth = s.jibLength + s.jibBack;
+    // The picture's A-frame - its pivot, found by the import script - goes
+    // on the mast, with the boom at the mast head. It is drawn with the long
+    // arm to the right and the drawing wants it out over the building to the
+    // left, so it is mirrored about the mast.
+    const pivot = jibFile.pivotX ?? 0;
+    const jibWidth = s.jibLength / Math.max(0.01, 1 - pivot);
     const jibHeight = jibWidth * (jibFile.h / jibFile.w);
     slew.append(
       svgEl('image', {
         class: 'crane-art',
         href: jibFile.url,
-        x: x - s.jibLength,
-        y: top - s.jibHeight,
+        x: x - pivot * jibWidth,
+        y: top - (jibFile.beamY ?? 0) * jibHeight,
         width: jibWidth,
         height: jibHeight,
         preserveAspectRatio: 'none',
+        transform: `matrix(-1 0 0 1 ${2 * x} 0)`,
       }),
     );
   }

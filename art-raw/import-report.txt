@@ -1,0 +1,17 @@
+pieces: 7
+total bytes: 210662
+warnings:
+- floors.png: an even 5-way split cuts a drawing at x=317; the cut is moved to the nearest empty column
+- floors.png: an even 5-way split cuts a drawing at x=1267; the cut is moved to the nearest empty column
+- floors: narrowest piece is 260px, under the 480px target; kept at 260px
+- floor-grid stacked on itself: top and bottom edges differ by 31/255 in colour
+- floor-framing stacked on itself: top and bottom edges differ by 31/255 in colour
+- floor-services stacked on itself: top and bottom edges differ by 30/255 in colour
+- floor-complete stacked on itself: top and bottom edges differ by 34/255 in colour
+- floors.png: each tile is 1.79 as tall as it is wide (limit 0.6); a tile this tall reads as more than one storey
+- floors.png: HELD - written and reported, but not listed for the game. All three generations drew each segment as a block of about four storeys (258x463, portrait). As a floor tile a house would read as a four-storey building. Imported and reported, not listed for the game until decided.
+- crane.png: an even 2-way split cuts a drawing at x=792; the cut is moved to the nearest empty column
+- crane-tower: source is 134px wide, under the 256px target; kept at 134px rather than enlarged
+- crane-jib: source is 855px wide, under the 960px target; kept at 855px rather than enlarged
+- skyline-near: source is 1584px wide, under the 1920px target; kept at 1584px rather than enlarged
+- ground: source is 1584px wide, under the 1920px target; kept at 1584px rather than enlarged

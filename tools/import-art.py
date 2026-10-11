@@ -55,6 +55,7 @@ SPAN_TOLERANCE = 0.02  # opaque spans may differ by 2% of the width
 COLOUR_TOLERANCE = 28.0  # mean channel difference along a seam
 ASPECT_TOLERANCE = 0.05  # floor pieces may differ in shape by 5%
 GROUND_ROW = 0.9  # the dirt line is the first row this opaque
+EDGE_ROW = 0.3  # an edge row this covered is a real edge, not a stray corner
 
 warnings = []
 
@@ -198,13 +199,28 @@ def colour_gap(a, b):
     return sum(abs(p[i] - q[i]) for p, q in pairs for i in range(3)) / (3 * len(pairs))
 
 
+def edge_row(image, from_top):
+    """
+    The outermost row that is substantially there. The very first and last
+    rows after trimming are often a few antialiased pixels of a slab's corner,
+    which say nothing about where the wall is.
+    """
+    w, h = image.size
+    alpha = image.getchannel("A").load()
+    ys = range(h) if from_top else range(h - 1, -1, -1)
+    for y in ys:
+        if sum(1 for x in range(w) if alpha[x, y] > EMPTY_ALPHA) / w >= EDGE_ROW:
+            return row_of(image, y)
+    return row_of(image, 0 if from_top else h - 1)
+
+
 def check_stack(pieces, names):
     """Every floor sits on every other: each bottom edge has to meet each top edge."""
     w = pieces[0].size[0]
     for lower, lower_name in zip(pieces, names):
-        top = row_of(lower, 0)
+        top = edge_row(lower, True)
         for upper, upper_name in zip(pieces, names):
-            bottom = row_of(upper, upper.size[1] - 1)
+            bottom = edge_row(upper, False)
             a, b = opaque_span(top), opaque_span(bottom)
             if a is None or b is None:
                 warn(f"{upper_name} on {lower_name}: an edge row is empty, the floors will float")
@@ -213,7 +229,7 @@ def check_stack(pieces, names):
             if drift > SPAN_TOLERANCE:
                 warn(f"{upper_name} on {lower_name}: walls miss by {drift:.1%} of the width")
     for piece, name in zip(pieces, names):
-        gap = colour_gap(row_of(piece, 0), row_of(piece, piece.size[1] - 1))
+        gap = colour_gap(edge_row(piece, True), edge_row(piece, False))
         if gap > COLOUR_TOLERANCE:
             warn(f"{name} stacked on itself: top and bottom edges differ by {gap:.0f}/255 in colour")
 
@@ -228,6 +244,29 @@ def check_tile(image, name):
     gap = colour_gap(left, right)
     if gap > COLOUR_TOLERANCE:
         warn(f"{name}: left and right edges differ by {gap:.0f}/255 in colour")
+
+
+def jib_pivot(image):
+    """
+    Where a jib sits on its tower: the A-frame is the highest thing on a tower
+    crane's jib, so the column it tops is the pivot; the boom is the row that
+    runs furthest across. Both as fractions of the picture.
+    """
+    w, h = image.size
+    alpha = image.getchannel("A").load()
+    top_x, top_y = 0, h
+    for x in range(w):
+        for y in range(h):
+            if alpha[x, y] > EMPTY_ALPHA:
+                if y < top_y:
+                    top_x, top_y = x, y
+                break
+    widest, beam_y = -1, 0
+    for y in range(h):
+        count = sum(1 for x in range(w) if alpha[x, y] > EMPTY_ALPHA)
+        if count > widest:
+            widest, beam_y = count, y
+    return round(top_x / w, 4), round(beam_y / h, 4)
 
 
 def ground_line(image):
@@ -304,12 +343,15 @@ def write_manifest(entries):
         "  readonly h: number;",
         "  /** Ground only: the dirt line, in image pixels from the top. */",
         "  readonly groundLine?: number;",
+        "  /** Jib only: where it sits on the tower, as fractions across and down. */",
+        "  readonly pivotX?: number;",
+        "  readonly beamY?: number;",
         "}",
         "",
         "export const ART_FILES: Readonly<Record<string, ArtFile>> = {",
     ]
     for name, meta in entries:
-        extra = f", groundLine: {meta['groundLine']}" if "groundLine" in meta else ""
+        extra = "".join(f", {key}: {meta[key]}" for key in ("groundLine", "pivotX", "beamY") if key in meta)
         lines.append(f"  '{name}': {{ url: 'art/{name}.webp', w: {meta['w']}, h: {meta['h']}{extra} }},")
     lines.append("};")
     with open(MANIFEST, "w", encoding="utf-8") as handle:
@@ -344,6 +386,15 @@ def main():
 
         if sheet.get("seam") == "stack":
             check_stack(pieces, names)
+        limit = sheet.get("maxTileAspect")
+        if limit is not None:
+            shape = pieces[0].size[1] / pieces[0].size[0]
+            if shape > limit:
+                warn(f"{sheet['file']}: each tile is {shape:.2f} as tall as it is wide "
+                     f"(limit {limit}); a tile this tall reads as more than one storey")
+        held = sheet.get("hold")
+        if held:
+            warn(f"{sheet['file']}: HELD - written and reported, but not listed for the game. {held}")
 
         for piece, name in zip(pieces, names):
             if sheet.get("seam") == "tile":
@@ -354,13 +405,21 @@ def main():
             meta = {"w": piece.size[0], "h": piece.size[1]}
             if sheet.get("groundLine"):
                 meta["groundLine"] = ground_line(piece)
-            out = os.path.join(OUT, f"{name}.webp")
+            if name == "crane-jib":
+                meta["pivotX"], meta["beamY"] = jib_pivot(piece)
+            # A held piece is kept for review but must not ship in the build.
+            folder = os.path.join(RAW, "held") if held else OUT
+            os.makedirs(folder, exist_ok=True)
+            out = os.path.join(folder, f"{name}.webp")
             piece.save(out, "WEBP", quality=88, method=6)
             size = os.path.getsize(out)
-            print(f"  {name:16} {piece.size[0]:5}x{piece.size[1]:<5} {size / 1024:7.1f} KB")
-            produced.append((name, meta))
-            contact.append((name, piece))
+            print(f"  {name:16} {piece.size[0]:5}x{piece.size[1]:<5} {size / 1024:7.1f} KB"
+                  + ("  (held)" if held else ""))
+            if not held:
+                produced.append((name, meta))
+            contact.append((name + (" (held)" if held else ""), piece))
 
+    # What ships: the pieces listed for the game.
     total = sum(os.path.getsize(os.path.join(OUT, f"{n}.webp")) for n, _ in produced)
     print(f"total {total / 1024 / 1024:.2f} MB of {spec['budgetBytes'] / 1024 / 1024:.0f} MB budget")
     if total > spec["budgetBytes"]:
