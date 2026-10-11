@@ -501,6 +501,13 @@ export const theme = {
   /** Ad buttons exist but stay hidden until there is an SDK behind them. */
   adHooksEnabled: false,
 
+  /**
+   * Image slots on or off (order 009 decision A). Off, every slot draws
+   * itself as vectors whatever src/ui/art-files.ts lists - the switch the
+   * deployed build uses while the art is finished on its own branch.
+   */
+  artEnabled: true,
+
   /** Sound ships muted; the player turns it on. */
   soundDefaultOn: false,
   /**

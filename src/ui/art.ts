@@ -9,6 +9,7 @@
 
 import { ART_FILES, type ArtFile } from './art-files';
 import type { FloorState } from './building';
+import { theme } from './theme';
 
 export type ArtPiece =
   | 'floor-grid'
@@ -26,6 +27,7 @@ export type ArtPiece =
 
 /** The picture for a slot, or null to draw it as vectors. */
 export function artFor(piece: ArtPiece): ArtFile | null {
+  if (!theme.artEnabled) return null;
   return ART_FILES[piece] ?? null;
 }
 
