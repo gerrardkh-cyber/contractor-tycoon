@@ -1,0 +1,78 @@
+{
+  "_comment": "Order 009 §2-3. What tools/import-art.py cuts out of art-raw/ and where each piece goes. docs/ART_SLOTS.md documents this file; tests/ui-tokens.test.ts keeps the two in step.",
+  "budgetBytes": 3145728,
+  "keyColor": [
+    255,
+    0,
+    255
+  ],
+  "sheets": [
+    {
+      "file": "floors.png",
+      "pieces": [
+        "floor-grid",
+        "floor-framing",
+        "floor-framed",
+        "floor-services",
+        "floor-complete"
+      ],
+      "sameSize": true,
+      "seam": "stack",
+      "targetWidth": 480,
+      "hold": "All three generations drew each segment as a block of about four storeys (258x463, portrait). As a floor tile a house would read as a four-storey building. Imported and reported, not listed for the game until decided.",
+      "maxTileAspect": 0.6
+    },
+    {
+      "file": "foundation-roof.png",
+      "pieces": [
+        "foundation",
+        "roof"
+      ],
+      "targetWidth": 480
+    },
+    {
+      "file": "crane.png",
+      "pieces": [
+        "crane-tower",
+        "crane-jib"
+      ],
+      "targetWidth": {
+        "crane-tower": 256,
+        "crane-jib": 960
+      }
+    },
+    {
+      "file": "skyline-far.png",
+      "pieces": [
+        "skyline-far"
+      ],
+      "seam": "tile",
+      "targetWidth": 1920
+    },
+    {
+      "file": "skyline-near.png",
+      "pieces": [
+        "skyline-near"
+      ],
+      "seam": "tile",
+      "targetWidth": 1920
+    },
+    {
+      "file": "ground.png",
+      "pieces": [
+        "ground"
+      ],
+      "seam": "tile",
+      "groundLine": true,
+      "targetWidth": 1920
+    }
+  ],
+  "vectorOnly": [
+    "sky",
+    "rain",
+    "workers",
+    "truck",
+    "inspector",
+    "fence"
+  ]
+}

@@ -126,6 +126,12 @@ ${phase('night')}
 .scene-skyline .skyline-block{fill:${c.panelSunk};stroke:${c.bg};stroke-width:.5}
 .scene-skyline.is-near .skyline-block{fill:${c.panelSunk}}
 .scene[data-phase="night"] .scene-skyline.is-far{opacity:.3}
+/* A picture carries far more detail than the drawn blocks did, so it is
+   pushed further back: dimmer, greyer, and the site stays the subject. */
+.scene-skyline.is-art{filter:saturate(.55) brightness(.62)}
+.scene-skyline.is-far.is-art{opacity:.42}
+.scene-skyline.is-near.is-art{opacity:.4}
+.scene[data-phase="night"] .scene-skyline.is-art{filter:saturate(.4) brightness(.42)}
 
 /* The site card opens under the scene, so the ground line comes up to meet
    it rather than letting it cover the building it describes. */
@@ -140,6 +146,13 @@ ${phase('night')}
   background:linear-gradient(180deg,var(--ground-col),${c.bg});
   border-top:${s.hairline * 2}px solid ${c.groundLine};
   transition:background ${d.blendMs}ms ${easing.inOut};
+}
+.scene-ground-art{
+  position:absolute;left:0;right:0;top:0;background-repeat:repeat-x;
+  background-position:left top;pointer-events:none;
+  /* The picture's bottom edge would show as a line; let it fade into the band. */
+  -webkit-mask-image:linear-gradient(180deg,${c.text} 80%,${c.transparent});
+  mask-image:linear-gradient(180deg,${c.text} 80%,${c.transparent});
 }
 .scene-ground::after{
   content:'';position:absolute;left:0;right:0;top:0;height:${s.gap}px;
@@ -409,6 +422,33 @@ function building(): string {
 .bld-rain.is-on{opacity:1}
 .bld-rain line{stroke:${c.rain}}
 .bld-rain.is-on line{animation:rainfall ${m.rainMs}ms ${easing.linear} infinite}
+
+/*
+ * Order 009: parts with a picture. The drawn part underneath keeps its state
+ * classes for everything that reads them; it just stops being painted.
+ */
+.bld-art{transition:opacity ${m.slideInMs}ms ${easing.out}}
+.bld-art.is-waiting{opacity:.32}
+.bld-art.is-active{opacity:.82}
+.bld-art.is-done{opacity:1}
+.building.has-foundation-art .bld-foundation{fill:none;stroke:none}
+.building.has-foundation-art .bld-foundation.is-active{stroke:${c.accent};stroke-dasharray:${v.gridDash}}
+.building.has-roof-art .bld-roof .roof-deck,
+.building.has-roof-art .bld-roof .roof-parapet{display:none}
+.building.has-floor-art .bld-floor .floor-grid,
+.building.has-floor-art .bld-floor .floor-steel,
+.building.has-floor-art .bld-floor .floor-services,
+.building.has-floor-art .bld-floor .floor-wall{display:none}
+.building.has-floor-art .bld-floor.is-waiting .floor-art{opacity:.45}
+.floor-glow{fill:var(--window-lit);opacity:0;pointer-events:none;transition:opacity ${m.slideInMs * 4}ms ${easing.out}}
+.scene[data-phase="night"] .bld-floor.is-done .floor-glow{opacity:.34}
+.scene[data-phase="evening"] .bld-floor.is-done .floor-glow{opacity:.2}
+.building.has-crane-art .crane-base,
+.building.has-crane-art .crane-mast,
+.building.has-crane-art .crane-cab,
+.building.has-crane-art .crane-jib,
+.building.has-crane-art .crane-tie,
+.building.has-crane-art .crane-hoist{display:none}
 
 /* Topped out: the flag goes up and stays up. */
 .bld-flag{opacity:0;transition:opacity ${m.slideInMs}ms ${easing.out}}
@@ -726,8 +766,16 @@ html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
   padding:${s.gap}px;overflow:hidden;
 }
 .title-screen.is-leaving{animation:fade-out ${m.titleFadeMs}ms ${easing.out} forwards;pointer-events:none}
+/*
+ * The crane stands in the corner under the title block, never beside it: its
+ * hook hangs from the jib's far end, and at full width that end landed on the
+ * language toggle. Bounded by height - the room below the centred block - so
+ * it shrinks on a short screen instead of climbing into the buttons.
+ */
 .title-crane{
-  position:absolute;right:0;bottom:0;width:min(62vw,${s.iconSizeTitle * 4}px);height:auto;
+  position:absolute;right:0;bottom:0;width:auto;
+  height:min(calc(50vh - ${s.titleCraneClearPx}px),${s.iconSizeTitle * 4 * 0.84}px);
+  max-width:62vw;
   fill:none;stroke:${c.border};stroke-width:${s.hairline};stroke-linecap:round;opacity:.9;
   pointer-events:none;
 }

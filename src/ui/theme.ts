@@ -113,12 +113,16 @@ const svg = {
   envelopeInset: 2.6,
   envelopeStroke: 2,
   roofHeight: 7,
+  /** How many floors deep the band a roof picture sits in is. */
+  roofArtFloors: 0.9,
   roofInset: 5,
   parapetHeight: 2.5,
 
   /** Tower crane, standing to the right of the building. */
   craneX: 143,
   craneBaseWidth: 18,
+  /** How wide the crane tower picture stands, whatever the mast's height. */
+  craneArtWidth: 15,
   craneBaseHeight: 5,
   mastWidth: 7,
   mastRungGap: 7,
@@ -190,6 +194,8 @@ const size = {
   iconSize: 15,
   iconSizeLarge: 20,
   iconSizeTitle: 132,
+  /** How far below the screen's middle the title crane's top must stay. */
+  titleCraneClearPx: 190,
 
   pageBottomPad: 64,
   statMinWidth: 112,
@@ -353,6 +359,15 @@ const scene = {
    */
   maxBuildingRatio: 1,
   referenceFloors: 8,
+  /**
+   * The camera (order 009 §6). A house fills this much of the window; a block
+   * of `referenceFloors` fills the room above the ground; the sky above the
+   * tallest building never takes more than `maxSkyShare`; a change of framing
+   * takes `zoomMs`.
+   */
+  houseShare: 0.38,
+  maxSkyShare: 0.5,
+  zoomMs: 1000,
   /** The band at the top the HUD sits in, kept clear of the skyline. */
   hudRoomPx: 56,
   /** Below this the scene stops shrinking and the row scrolls instead. */
@@ -383,6 +398,11 @@ const scene = {
   skylineFarHeight: 0.26,
   skylineNearHeight: 0.3,
   skylineSeed: 1973,
+  /** The drawn skylines' own boxes, when there is no picture for them. */
+  skylineViewHeight: { far: 42, near: 56 },
+  fenceViewWidth: 128,
+  /** How tall the ground picture is laid, from its top to the bottom edge. */
+  groundArtHeightPx: 220,
 
   /** How long one frame of a two-frame walk is held. */
   stepFrameMs: 260,
@@ -475,43 +495,18 @@ const daylight = {
   },
 } as const;
 
-/**
- * Replaceable art slots, one per scene layer.
- *
- * Every layer is drawn from vectors today. The six flat layers - sky, both
- * skylines, ground, fence and weather - take an image the moment their `src`
- * is set, with no other change.
- *
- * The building's own parts and the figures (`foundation`, `floorTile`, `roof`,
- * `crane`, `worker`, `truck`, `inspector`) are declared here but not wired yet:
- * each changes with the state of the job - a floor is unbuilt, framed,
- * serviced, at a gate or finished - and one picture cannot say which. They need
- * a slot per state, or a sheet with a frame per state, which is a decision for
- * order 009 rather than a guess here. docs/ART_SLOTS.md says which is which.
- */
-const art = {
-  sky: { src: null, w: 1920, h: 1080, repeat: 'none', alpha: false, frames: 1 },
-  skylineFar: { src: null, w: 1920, h: 420, repeat: 'x', alpha: true, frames: 1 },
-  skylineNear: { src: null, w: 1920, h: 560, repeat: 'x', alpha: true, frames: 1 },
-  ground: { src: null, w: 512, h: 260, repeat: 'x', alpha: false, frames: 1 },
-  fence: { src: null, w: 128, h: 96, repeat: 'x', alpha: true, frames: 1 },
-  foundation: { src: null, w: 480, h: 96, repeat: 'none', alpha: true, frames: 1 },
-  floorTile: { src: null, w: 480, h: 128, repeat: 'y', alpha: true, frames: 1 },
-  roof: { src: null, w: 520, h: 128, repeat: 'none', alpha: true, frames: 1 },
-  crane: { src: null, w: 640, h: 1024, repeat: 'none', alpha: true, frames: 1 },
-  worker: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
-  truck: { src: null, w: 320, h: 128, repeat: 'none', alpha: true, frames: 2 },
-  inspector: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
-  weather: { src: null, w: 256, h: 256, repeat: 'xy', alpha: true, frames: 1 },
-} as const;
-
-export type ArtSlotId = keyof typeof art;
-export type ArtSlot = (typeof art)[ArtSlotId];
 export type DaylightPhase = (typeof daylight.phases)[number];
 
 export const theme = {
   /** Ad buttons exist but stay hidden until there is an SDK behind them. */
   adHooksEnabled: false,
+
+  /**
+   * Image slots on or off (order 009 decision A). Off, every slot draws
+   * itself as vectors whatever src/ui/art-files.ts lists - the switch the
+   * deployed build uses while the art is finished on its own branch.
+   */
+  artEnabled: false,
 
   /** Sound ships muted; the player turns it on. */
   soundDefaultOn: false,
@@ -526,7 +521,6 @@ export const theme = {
   svg,
   scene,
   daylight,
-  art,
   font,
   layout,
   motion,

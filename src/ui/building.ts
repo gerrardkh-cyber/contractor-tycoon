@@ -11,6 +11,7 @@
 // single scale factor sizes them both against the same ground line.
 
 import { findTask, stageDurationSec, type GameState, type Project } from '../core';
+import { artFor, FLOOR_PIECE, floorsHaveArt, type ArtPiece } from './art';
 import { clear, replayAnimation, setAttr, svgEl, toggleClass } from './dom';
 import { theme } from './theme';
 
@@ -69,9 +70,9 @@ export function bandStateOf(project: Project, stageId: string): BandState {
  */
 export function geometryFor(floors: number): Geometry {
   const s = theme.svg;
-  const floorHeight = s.floorHeight;
+  const floorHeight = floorTileHeight();
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
-  const structureHeight = s.foundationHeight + bodyHeight + s.roofHeight + s.parapetHeight;
+  const structureHeight = s.foundationHeight + bodyHeight + roofBandHeight(floorHeight);
   const mastHeight = Math.max(s.craneMinHeight, structureHeight + s.craneHeadroom);
   const height = Math.round(s.topPad + mastHeight);
   const groundLevel = height;
@@ -95,6 +96,8 @@ export function geometryFor(floors: number): Geometry {
 interface FloorParts {
   group: SVGGElement;
   steel: SVGGElement;
+  /** The floor's picture, when the floor slots have them. */
+  art: SVGImageElement | null;
   state: FloorState | null;
   raised: boolean;
 }
@@ -124,6 +127,26 @@ export function createBuildingView(floors: number): BuildingView {
     role: 'img',
   });
   svg.style.aspectRatio = `${g.width} / ${g.height}`;
+
+  // Order 009: each part draws itself unless its image slot has a picture.
+  // The drawn part stays underneath as the carrier of the state classes, so
+  // the stylesheet only has to stop painting it.
+  const floorArt = floorsHaveArt();
+  toggleClass(svg, 'has-floor-art', floorArt);
+
+  const foundationArt = artImage(
+    'foundation',
+    g.bodyLeft - s.foundationOverhang,
+    g.bodyWidth + s.foundationOverhang * 2,
+    'bld-art bld-foundation-art',
+  );
+  if (foundationArt) {
+    // The slab's top edge is flat and sits where the drawn one does; the
+    // footings hang below it into the ground.
+    foundationArt.node.setAttribute('y', String(g.foundationTop));
+    svg.append(foundationArt.node);
+    svg.classList.add('has-foundation-art');
+  }
 
   const foundation = svgEl('rect', {
     class: 'bld-foundation',
@@ -155,6 +178,22 @@ export function createBuildingView(floors: number): BuildingView {
 
   const roof = buildRoof(g);
   svg.append(roof.group);
+  const roofArt = artImage(
+    'roof',
+    g.bodyLeft - s.envelopeInset,
+    g.bodyWidth + s.envelopeInset * 2,
+    'bld-art bld-roof-art',
+  );
+  if (roofArt) {
+    // A band one floor deep on the top floor, showing the picture's top: the
+    // parapet and railing, not a second storey of plain wall under them.
+    const band = roofBandHeight(g.floorHeight);
+    roofArt.node.setAttribute('y', String(g.buildingTop - band));
+    roofArt.node.setAttribute('height', String(band));
+    roofArt.node.setAttribute('preserveAspectRatio', 'xMidYMin slice');
+    svg.append(roofArt.node);
+    svg.classList.add('has-roof-art');
+  }
 
   // Topped out: the flag goes up at handover and stays up.
   const flag = buildFlag(g);
@@ -165,6 +204,7 @@ export function createBuildingView(floors: number): BuildingView {
 
   const crane = buildCrane(g);
   svg.append(crane.group);
+  toggleClass(svg, 'has-crane-art', crane.art);
   let liftedFloor: number | null = null;
 
   const badgeLayer = svgEl('g', { class: 'bld-badges' });
@@ -197,6 +237,10 @@ export function createBuildingView(floors: number): BuildingView {
     setBandClass(foundation, 'bld-foundation', bandStateOf(project, 'foundation'));
     setBandClass(envelope, 'bld-envelope', bandStateOf(project, 'weatherproof'));
     setBandClass(roof.group, 'bld-roof', bandStateOf(project, 'final'));
+    if (foundationArt) {
+      setBandClass(foundationArt.node, 'bld-art bld-foundation-art', bandStateOf(project, 'foundation'));
+    }
+    if (roofArt) setBandClass(roofArt.node, 'bld-art bld-roof-art', bandStateOf(project, 'final'));
 
     const wet = state.weather.raining && !project.riskyPourActive;
     if (wet !== raining) {
@@ -286,6 +330,46 @@ export function createBuildingView(floors: number): BuildingView {
 
 // ---- pieces ---------------------------------------------------------------
 
+/**
+ * One floor's height. With floor pictures it is the pictures' own shape at
+ * the building's width, so a tile is never squashed to fit a number; without
+ * them it is the drawn tile from the theme.
+ */
+function floorTileHeight(): number {
+  const s = theme.svg;
+  const tile = floorsHaveArt() ? artFor('floor-complete') : null;
+  return tile ? (s.bodyRight - s.bodyLeft) * (tile.h / tile.w) : s.floorHeight;
+}
+
+/**
+ * How tall the roof stands above the top floor. A roof picture gets a band
+ * one floor deep and shows its top part in it - the parapet and the railing -
+ * because at its own proportions it would stand as tall as two floors.
+ */
+function roofBandHeight(floorHeight: number): number {
+  const s = theme.svg;
+  return artFor('roof') ? floorHeight * s.roofArtFloors : s.roofHeight + s.parapetHeight;
+}
+
+/** An image slot laid into the drawing, at the picture's own proportions. */
+function artImage(piece: ArtPiece, x: number, width: number, className: string): {
+  node: SVGImageElement;
+  height: number;
+} | null {
+  const file = artFor(piece);
+  if (!file) return null;
+  const height = width * (file.h / file.w);
+  const node = svgEl('image', {
+    class: className,
+    href: file.url,
+    x,
+    width,
+    height,
+    preserveAspectRatio: 'none',
+  });
+  return { node, height };
+}
+
 /** The top edge of a floor, in viewBox units. */
 export function floorTopOf(g: Geometry, floor: number): number {
   return g.foundationTop - (floor + 1) * g.floorHeight - floor * theme.svg.floorGap;
@@ -333,8 +417,10 @@ function buildFloor(g: Geometry, floor: number): FloorParts {
   );
 
   // Framing: steel that fills in from the left as the crew works across.
+  // Grows from its own left edge: the stylesheet sets transform-box to the
+  // group's box, so an origin written in drawing units here would land that
+  // far to the right of it - invisible small, plain once the camera zooms in.
   const steel = svgEl('g', { class: 'floor-steel' });
-  steel.style.transformOrigin = `${g.bodyLeft}px ${y + g.floorHeight / 2}px`;
   const bays = 4;
   for (let bay = 0; bay <= bays; bay += 1) {
     const x = g.bodyLeft + (g.bodyWidth / bays) * bay;
@@ -431,7 +517,32 @@ function buildFloor(g: Geometry, floor: number): FloorParts {
     }),
   );
 
-  return { group, steel, state: null, raised: false };
+  // With floor pictures, one image per floor shows whichever state it is in.
+  let art: SVGImageElement | null = null;
+  if (floorsHaveArt()) {
+    art = svgEl('image', {
+      class: 'floor-art',
+      x: g.bodyLeft,
+      y,
+      width: g.bodyWidth,
+      height: g.floorHeight,
+      preserveAspectRatio: 'none',
+    });
+    // After dark a finished floor is lived in: a warm wash over the picture,
+    // since the picture's windows are wherever the artist put them.
+    group.insertBefore(art, group.firstChild);
+    group.append(
+      svgEl('rect', {
+        class: 'floor-glow',
+        x: g.bodyLeft,
+        y,
+        width: g.bodyWidth,
+        height: g.floorHeight,
+      }),
+    );
+  }
+
+  return { group, steel, art, state: null, raised: false };
 }
 
 function applyFloorState(
@@ -443,6 +554,10 @@ function applyFloorState(
 ): void {
   if (parts.state !== next) {
     setAttr(parts.group, 'class', `bld-floor is-${next}`);
+    if (parts.art) {
+      const file = artFor(FLOOR_PIECE[next]);
+      if (file) setAttr(parts.art, 'href', file.url);
+    }
     // Topping out: the floor rises into place and settles.
     if (next === 'done' && parts.state !== null && !parts.raised) {
       parts.raised = true;
@@ -493,7 +608,12 @@ function setBandClass(node: SVGElement, base: string, state: BandState): void {
   setAttr(node, 'class', `${base} is-${state}`);
 }
 
-function buildCrane(g: Geometry): { group: SVGGElement; lift: SVGGElement; restY: number } {
+function buildCrane(g: Geometry): {
+  group: SVGGElement;
+  lift: SVGGElement;
+  restY: number;
+  art: boolean;
+} {
   const s = theme.svg;
   const group = svgEl('g', { class: 'bld-crane is-idle' });
   const x = s.craneX;
@@ -609,7 +729,52 @@ function buildCrane(g: Geometry): { group: SVGGElement; lift: SVGGElement; restY
   slew.append(lift);
   group.append(slew);
 
-  return { group, lift, restY: top + hookDrop };
+  // Order 009: the tower and the jib can be pictures. The tower stands where
+  // the drawn mast stands; the jib turns with the drawn one, inside the same
+  // slewing group, so the crane still swings. Its picture carries its own
+  // hook, so the drawn hoist is put away rather than hung twice.
+  const towerFile = artFor('crane-tower');
+  const jibFile = artFor('crane-jib');
+  const art = towerFile !== null && jibFile !== null;
+  if (art) {
+    // A tower is as wide as a tower whatever its height: the picture keeps
+    // a fixed width and stretches up the mast, rather than fattening with it.
+    const mastHeight = g.groundLevel - top;
+    const towerWidth = s.craneArtWidth;
+    group.insertBefore(
+      svgEl('image', {
+        class: 'crane-art',
+        href: towerFile.url,
+        x: x - towerWidth / 2,
+        y: top - s.cabSize,
+        width: towerWidth,
+        height: mastHeight + s.cabSize,
+        preserveAspectRatio: 'none',
+      }),
+      slew,
+    );
+    // The picture's A-frame - its pivot, found by the import script - goes
+    // on the mast, with the boom at the mast head. It is drawn with the long
+    // arm to the right and the drawing wants it out over the building to the
+    // left, so it is mirrored about the mast.
+    const pivot = jibFile.pivotX ?? 0;
+    const jibWidth = s.jibLength / Math.max(0.01, 1 - pivot);
+    const jibHeight = jibWidth * (jibFile.h / jibFile.w);
+    slew.append(
+      svgEl('image', {
+        class: 'crane-art',
+        href: jibFile.url,
+        x: x - pivot * jibWidth,
+        y: top - (jibFile.beamY ?? 0) * jibHeight,
+        width: jibWidth,
+        height: jibHeight,
+        preserveAspectRatio: 'none',
+        transform: `matrix(-1 0 0 1 ${2 * x} 0)`,
+      }),
+    );
+  }
+
+  return { group, lift, restY: top + hookDrop, art };
 }
 
 function renderPunch(layer: SVGGElement, g: Geometry, open: number, previous: number): void {

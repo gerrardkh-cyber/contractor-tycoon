@@ -64,40 +64,49 @@ describe('src/ui keeps colour and size in theme.ts', () => {
 });
 
 /**
- * Order 008 §6: the scene's layers are art slots, and the slot list is a
- * document the next order works from. A slot that exists in code but not in
- * the document is a layer nobody knows how to draw for.
+ * Order 009 §2-3: the image slots are a spec the import script follows
+ * (tools/art-slots.json), a list the game knows (src/ui/art.ts), and a
+ * document the artist works from (docs/ART_SLOTS.md). Three copies of one
+ * list drift apart unless something holds them together.
  */
-describe('the art slots are documented', () => {
-  const theme = readFileSync(join(ROOT, 'src', 'ui', 'theme.ts'), 'utf8');
+describe('the image slots agree everywhere they are listed', () => {
+  const spec = JSON.parse(readFileSync(join(ROOT, 'tools', 'art-slots.json'), 'utf8')) as {
+    sheets: { file: string; pieces: string[] }[];
+    vectorOnly: string[];
+  };
+  const pieces = spec.sheets.flatMap((sheet) => sheet.pieces);
   const doc = readFileSync(join(ROOT, 'docs', 'ART_SLOTS.md'), 'utf8');
+  const art = readFileSync(join(ROOT, 'src', 'ui', 'art.ts'), 'utf8');
+  const files = readFileSync(join(ROOT, 'src', 'ui', 'art-files.ts'), 'utf8');
 
-  function slotNames(): string[] {
-    const start = theme.indexOf('const art = {');
-    const end = theme.indexOf('\n} as const;', start);
-    expect(start, 'theme.ts has no art block').toBeGreaterThan(-1);
-    return [...theme.slice(start, end).matchAll(/^ {2}(\w+): \{/gm)].map((hit) => hit[1] ?? '');
-  }
-
-  it('has a slot list to check', () => {
-    expect(slotNames().length).toBeGreaterThan(5);
+  it('has the twelve pieces order 009 names', () => {
+    expect(pieces).toHaveLength(12);
   });
 
-  it('describes every slot the scene can draw', () => {
-    for (const name of slotNames()) {
-      expect(doc.includes(`\`${name}\``), `docs/ART_SLOTS.md does not list ${name}`).toBe(true);
+  it('documents every piece and every sheet', () => {
+    for (const piece of pieces) {
+      expect(doc.includes(`\`${piece}\``), `docs/ART_SLOTS.md does not list ${piece}`).toBe(true);
+    }
+    for (const sheet of spec.sheets) {
+      expect(doc.includes(sheet.file), `docs/ART_SLOTS.md does not name ${sheet.file}`).toBe(true);
     }
   });
 
-  it('gives every slot a size, a transparency and a tiling direction', () => {
-    const start = theme.indexOf('const art = {');
-    const end = theme.indexOf('\n} as const;', start);
-    const block = theme.slice(start, end);
-    for (const line of block.split('\n')) {
-      if (!/^ {2}\w+: \{/.test(line)) continue;
-      for (const field of ['src', 'w', 'h', 'repeat', 'alpha', 'frames']) {
-        expect(line.includes(`${field}:`), `${line.trim()} is missing ${field}`).toBe(true);
-      }
+  it('says which layers are not image slots', () => {
+    expect(doc).toContain('이미지 슬롯 아님');
+    for (const name of spec.vectorOnly) {
+      expect(doc.includes(`\`${name}\``), `docs/ART_SLOTS.md does not mark ${name} as vector`).toBe(true);
     }
+  });
+
+  it('is the list the game looks pictures up by', () => {
+    const union = art.slice(art.indexOf('export type ArtPiece'), art.indexOf(';', art.indexOf('export type ArtPiece')));
+    const named = [...union.matchAll(/'([a-z-]+)'/g)].map((hit) => hit[1]);
+    expect(named.sort()).toEqual([...pieces].sort());
+  });
+
+  it('has no picture the spec does not know about', () => {
+    const listed = [...files.matchAll(/^ {2}'([a-z-]+)':/gm)].map((hit) => hit[1] ?? '');
+    for (const name of listed) expect(pieces, `art-files.ts has ${name}`).toContain(name);
   });
 });

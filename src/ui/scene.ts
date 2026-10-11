@@ -9,9 +9,10 @@
 //
 //   sky -> skyline far -> skyline near -> ground -> plots -> actors -> weather
 //
-// Each layer is an art slot (theme.art). They are drawn as vectors here; give
-// a slot a `src` and it renders that image instead, which is what order 009
-// will do.
+// The skylines and the ground are image slots (order 009): when the import
+// script has put a picture in src/ui/art-files.ts they show it, and otherwise
+// they draw themselves as vectors. The sky, the rain and the hoarding are
+// always vectors.
 
 import { data, type GameState, type Project } from '../core';
 import { createActors, type Actors } from './actors';
@@ -20,7 +21,7 @@ import { clear, el, svgEl, toggleClass } from './dom';
 import { motionAllowed } from './motion';
 import { renderSlotCard } from './site';
 import { theme } from './theme';
-import type { ArtSlot } from './theme';
+import { artFor, type ArtPiece } from './art';
 import type { Ctx } from './context';
 
 export interface Scene {
@@ -56,10 +57,10 @@ interface Plot {
 }
 
 export function createScene(host: SceneHost): Scene {
-  const sky = artLayer(theme.art.sky, 'scene-sky');
+  const sky = el('div', { class: 'scene-sky' });
   const skylineFar = skyline('far', theme.scene.skylineFarCount, theme.scene.skylineFarHeight);
   const skylineNear = skyline('near', theme.scene.skylineNearCount, theme.scene.skylineNearHeight);
-  const ground = artLayer(theme.art.ground, 'scene-ground');
+  const ground = groundLayer();
   const row = el('div', { class: 'scene-row', 'data-guide': 'scene-row' });
   const weather = weatherLayer();
   const coins = el('div', { class: 'scene-coins' });
@@ -75,6 +76,8 @@ export function createScene(host: SceneHost): Scene {
   ]);
 
   const plots = new Map<string, Plot>();
+  /** Floors standing on the tallest site; what the camera frames. */
+  let framed = 0;
   /** Handed-over sites, and when their plot may go. */
   const leaving = new Map<string, number>();
   let lots = 0;
@@ -96,13 +99,20 @@ export function createScene(host: SceneHost): Scene {
   globalThis.addEventListener('resize', onResize);
 
   /**
-   * One scale for the whole row, so the buildings are to each other what they
-   * are in the fiction: a block of `referenceFloors` fills `maxBuildingRatio`
-   * of the scene, and a house is small because it is small.
+   * The camera. One scale for the whole row, so the buildings stay to each
+   * other what they are in the fiction, and that scale follows the tallest
+   * building on site as it actually stands (order 009 §6):
    *
-   * Height decides it when there is room. When there is not - several sites,
-   * or a phone - width decides it instead, and below `minPlotWidthPx` the row
-   * stops shrinking and scrolls.
+   *   - a house, or a block with one floor up, fills about `houseShare` of
+   *     the window;
+   *   - a block of `referenceFloors` fills the room between the HUD and the
+   *     ground line, as before;
+   *   - in between, the share runs straight from one to the other, so each
+   *     floor that goes up pulls the camera back a step;
+   *   - the empty sky above it never takes more than `maxSkyShare`.
+   *
+   * Width still has the last word: the building being framed has to fit the
+   * window across, and past that the row scrolls rather than shrinks.
    */
   function rescale(): void {
     const sc = theme.scene;
@@ -110,22 +120,72 @@ export function createScene(host: SceneHost): Scene {
     const width = node.clientWidth || globalThis.innerWidth;
     const unitWidth = theme.svg.width;
 
-    // Only the room above the ground line is the building's to use, the HUD
-    // has the top of it, and the ground line itself rises when the site card
-    // opens. Buildings are sized for the tighter of the two, so they never
-    // overflow and never resize under the player.
+    // The ground line rises when the site card opens; the camera frames for
+    // the tighter of the two, so nothing resizes under the player.
     const withCard = 1 - sc.detailMaxRatio - (sc.tabBarHeight + sc.plotGapPx) / height;
-    const room = height * Math.min(sc.groundRatio, withCard) - sc.hudRoomPx;
-    const byHeight = (room * sc.maxBuildingRatio) / geometryFor(sc.referenceFloors).structureHeight;
-    const columns = Math.max(1, plots.size + lots * sc.lotWidthRatio);
-    const gaps = (columns + 1) * sc.plotGapPx;
-    const byWidth = (width - gaps) / (columns * unitWidth);
+    const groundY = height * Math.min(sc.groundRatio, withCard);
+    const room = groundY - sc.hudRoomPx;
 
-    const next = Math.max(sc.minPlotWidthPx / unitWidth, Math.min(byHeight, byWidth));
+    let next: number;
+    if (framed === 0) {
+      // Nothing being built: show the lots, as many as fit.
+      const columns = Math.max(1, lots * sc.lotWidthRatio);
+      const byWidth = (width - (columns + 1) * sc.plotGapPx) / (columns * unitWidth);
+      const byHeight = room / geometryFor(sc.referenceFloors).structureHeight;
+      next = Math.min(byHeight, byWidth);
+    } else {
+      const structure = geometryFor(framed).structureHeight;
+      const fill = room / height;
+      const t = Math.min(1, (framed - 1) / Math.max(1, sc.referenceFloors - 1));
+      const share = sc.houseShare + (fill - sc.houseShare) * t;
+      next = (share * height) / structure;
+      // No more sky above it than the rule allows...
+      next = Math.max(next, (groundY - sc.maxSkyShare * height) / structure);
+      // ...but never out through the top of the room.
+      next = Math.min(next, room / structure);
+      // And the building itself has to fit the window across.
+      const body = theme.svg.bodyRight - theme.svg.bodyLeft + theme.svg.foundationOverhang * 2;
+      next = Math.min(next, (width - sc.plotGapPx * 2) / body);
+    }
+    next = Math.max(next, sc.minPlotWidthPx / unitWidth);
     if (Math.abs(next - scale) < 0.01) return;
+
+    const previous = scale;
     scale = next;
     for (const plot of plots.values()) sizePlot(plot);
     sizeLots();
+    bringIntoView(selected, true);
+    if (previous > 0) glide(previous / next);
+  }
+
+  /**
+   * Plays a scale change as a move rather than a jump. The layout has already
+   * changed; the row is put back to how it looked with a transform and then
+   * let go, so the change itself is a one-second transform and nothing else.
+   */
+  function glide(from: number): void {
+    if (!motionAllowed()) return;
+    row.style.transition = 'none';
+    row.style.transformOrigin = '50% 100%';
+    row.style.transform = `scale(${from.toFixed(4)})`;
+    void row.offsetWidth;
+    row.style.transition = `transform ${theme.scene.zoomMs}ms ${theme.easing.inOut}`;
+    row.style.transform = '';
+  }
+
+  /**
+   * How many floors of the tallest site are standing, counting the one going
+   * up. A house is one; a block with nothing framed yet is one too.
+   */
+  function framedFloors(state: GameState): number {
+    let tallest = 0;
+    for (const project of state.projects) {
+      const started = project.tasks.filter(
+        (task) => task.stageId === 'structural' && task.floor !== null && task.status !== 'waiting',
+      ).length;
+      tallest = Math.max(tallest, Math.min(project.floors, Math.max(1, started)));
+    }
+    return tallest;
   }
 
   function sizePlot(plot: Plot): void {
@@ -145,6 +205,11 @@ export function createScene(host: SceneHost): Scene {
   }
 
   function update(context: Ctx): void {
+    const standing = framedFloors(context.state);
+    if (standing !== framed) {
+      framed = standing;
+      rescale();
+    }
     if (scale === 0) rescale();
     syncPhase();
     syncWeather(context.state);
@@ -289,11 +354,18 @@ export function createScene(host: SceneHost): Scene {
    * On a narrow screen the row is wider than the window, and what the player
    * is building should be what they are looking at.
    */
-  function bringIntoView(projectId: string | null): void {
+  function bringIntoView(projectId: string | null, instant = false): void {
     const plot = projectId === null ? null : plots.get(projectId);
     if (!plot) return;
-    const left = plot.node.offsetLeft - (row.clientWidth - plot.node.offsetWidth) / 2;
-    row.scrollTo({ left: Math.max(0, left), behavior: motionAllowed() ? 'smooth' : 'auto' });
+    // The building's middle, not the plot's: zoomed in on a house, the crane
+    // beside it is what goes off the edge, not half the house.
+    const s = theme.svg;
+    const middle = ((s.bodyLeft + s.bodyRight) / 2) * scale;
+    const left = plot.node.offsetLeft + middle - row.clientWidth / 2;
+    row.scrollTo({
+      left: Math.max(0, left),
+      behavior: !instant && motionAllowed() ? 'smooth' : 'auto',
+    });
   }
 
   function pass(projectId: string, gateId: string): void {
@@ -376,27 +448,39 @@ export function createScene(host: SceneHost): Scene {
 // ---- layers ---------------------------------------------------------------
 
 /**
- * A layer either draws itself or shows the image its slot was given. Nothing
- * else in the scene needs to know which.
- *
- * This is the whole of the swap for the layers that are one flat picture:
- * sky, both skylines, the ground, the hoarding and the weather. The building's
- * own parts are not here - see docs/ART_SLOTS.md for why they still want a
- * decision before they can take an image.
+ * A strip that tiles sideways, from its image slot. Null when the slot has no
+ * picture and the layer should draw itself instead.
  */
-function slotImage(slot: ArtSlot, className: string): HTMLElement | null {
-  if (slot.src === null) return null;
+function stripArt(piece: ArtPiece, className: string): HTMLElement | null {
+  const file = artFor(piece);
+  if (!file) return null;
   const node = el('div', { class: `${className} is-art` });
-  node.style.backgroundImage = `url(${String(slot.src)})`;
-  node.style.backgroundRepeat =
-    slot.repeat === 'x' ? 'repeat-x' : slot.repeat === 'y' ? 'repeat-y' : slot.repeat === 'xy' ? 'repeat' : 'no-repeat';
-  node.style.backgroundSize = slot.repeat === 'none' ? 'cover' : 'auto 100%';
+  node.style.backgroundImage = `url(${file.url})`;
+  node.style.backgroundRepeat = 'repeat-x';
+  node.style.backgroundSize = 'auto 100%';
+  node.style.backgroundPosition = 'left bottom';
   return node;
 }
 
-/** The same swap for a layer that is otherwise an empty painted div. */
-function artLayer(slot: ArtSlot, className: string): HTMLElement {
-  return slotImage(slot, className) ?? el('div', { class: className });
+/**
+ * The ground band, and - when there is one - the ground picture laid along
+ * it with its own dirt line on the scene's.
+ */
+function groundLayer(): HTMLElement {
+  const band = el('div', { class: 'scene-ground' });
+  const file = artFor('ground');
+  if (!file) return band;
+
+  const height = theme.scene.groundArtHeightPx;
+  const line = ((file.groundLine ?? 0) / file.h) * height;
+  const strip = el('div', { class: 'scene-ground-art' });
+  strip.style.backgroundImage = `url(${file.url})`;
+  strip.style.backgroundSize = `auto ${height}px`;
+  strip.style.height = `${height}px`;
+  // The strip hangs from the ground line by however much of it is above the dirt.
+  strip.style.transform = `translateY(${(-line).toFixed(1)}px)`;
+  band.append(strip);
+  return band;
 }
 
 /**
@@ -404,17 +488,16 @@ function artLayer(slot: ArtSlot, className: string): HTMLElement {
  * the skyline is the same every time the game is opened.
  */
 function skyline(depth: 'far' | 'near', count: number, heightRatio: number): Element {
-  const slot = depth === 'far' ? theme.art.skylineFar : theme.art.skylineNear;
-  const art = slotImage(slot, `scene-skyline is-${depth}`);
+  const art = stripArt(depth === 'far' ? 'skyline-far' : 'skyline-near', `scene-skyline is-${depth}`);
   if (art) return art;
 
   const width = 100;
+  const top = theme.scene.skylineViewHeight[depth];
   const svg = svgEl('svg', {
     class: `scene-skyline is-${depth}`,
-    viewBox: `0 0 ${width} ${slot.h / 10}`,
+    viewBox: `0 0 ${width} ${top}`,
     preserveAspectRatio: 'none',
   });
-  const top = slot.h / 10;
   let seed = theme.scene.skylineSeed + (depth === 'far' ? 0 : 1);
   const random = (): number => {
     seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -434,10 +517,8 @@ function skyline(depth: 'far' | 'near', count: number, heightRatio: number): Ele
   return svg;
 }
 
+/** Rain is not an image slot: it is drawn, and it stays drawn. */
 function weatherLayer(): Element {
-  const art = slotImage(theme.art.weather, 'scene-weather');
-  if (art) return art;
-
   const s = theme.svg;
   // The layer is stretched across the whole window, so it is laid out in a
   // large box: a small one would blow every drop up into a plank.
@@ -464,12 +545,9 @@ function weatherLayer(): Element {
   return svg;
 }
 
-/** The hoarding around a lot nobody is building on yet. */
+/** The hoarding around a lot nobody is building on yet. Not an image slot. */
 function fence(): Element {
-  const picture = slotImage(theme.art.fence, 'plot-fence');
-  if (picture) return picture;
-
-  const art = theme.art.fence;
+  const art = { w: theme.scene.fenceViewWidth };
   const s = theme.scene;
   const svg = svgEl('svg', {
     class: 'plot-fence',
