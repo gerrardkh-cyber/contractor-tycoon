@@ -10,6 +10,12 @@
 - 화면 문자열을 UI 파일에 직접 쓰지 않는다. **한국어는 `strings.ko.ts` 에만 존재한다.**
 - **사용자에게 하는 보고는 한국어 존댓말.**
 
+## 화면 확인 주소
+- 광희님에게 화면 확인용으로 localhost 주소를 주지 않는다. 광희님은 휴대폰 원격으로 보는 경우가 많다.
+- 확인용 주소는 항상 GitHub Pages 공개 주소(본편 또는 /preview/)로 준다.
+  - 본편: https://gerrardkh-cyber.github.io/contractor-tycoon/
+  - 미리보기: https://gerrardkh-cyber.github.io/contractor-tycoon/preview/
+
 ## 원본(Source of Truth)
 - 게임 규칙과 숫자의 원본은 `docs/GDD.md`(규칙)와 `docs/BALANCE.md`(숫자)다.
 - 구현 중 규칙을 바꾸고 싶어지면 **바꾸지 말고 보고 후 대기**한다.

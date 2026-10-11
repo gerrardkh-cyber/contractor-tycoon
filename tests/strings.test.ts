@@ -74,8 +74,9 @@ describe('the Korean table matches the English one key for key', () => {
   });
 
   it('leaves no English string sitting untranslated in the Korean table', () => {
-    // Deliberate exceptions: a brand-ish word and the unit-free number formats.
-    const allowed = new Set(['title.nameSecond']);
+    // Deliberate exceptions: a brand-ish word, and the preview build's corner
+    // mark, which reads PREVIEW in every language (as instructed).
+    const allowed = new Set(['title.nameSecond', 'app.preview']);
     const same: string[] = [];
 
     for (const [key, value] of Object.entries(flatten(en))) {

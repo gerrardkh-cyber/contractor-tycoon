@@ -17,7 +17,20 @@ import {
   type Rng,
 } from '../core';
 
-export const SAVE_KEY = 'contractor-tycoon:save';
+/**
+ * The preview build is served on the same origin as the real game, one folder
+ * down, so it shares the browser's storage. It keeps everything under its own
+ * prefix: trying the preview never touches the real save, guide or settings.
+ */
+export const PREVIEW_BUILD = import.meta.env.VITE_PREVIEW === '1';
+const STORAGE_PREFIX = PREVIEW_BUILD ? 'contractor-tycoon-preview' : 'contractor-tycoon';
+
+/** The browser-storage key for one thing the game remembers. */
+export function storageKey(name: string): string {
+  return `${STORAGE_PREFIX}:${name}`;
+}
+
+export const SAVE_KEY = storageKey('save');
 export const SAVE_VERSION = 3;
 
 export interface SaveData {

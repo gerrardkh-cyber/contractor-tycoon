@@ -6,6 +6,7 @@
 
 import { strings as en, type Strings } from './strings.en';
 import { ko } from './strings.ko';
+import { storageKey } from '../save';
 
 export type LanguageId = 'en' | 'ko';
 
@@ -32,7 +33,7 @@ export type StringTable = Widen<Strings>;
 
 const tables: Record<LanguageId, StringTable> = { en, ko };
 
-const STORAGE_KEY = 'contractor-tycoon:lang';
+const STORAGE_KEY = storageKey('lang');
 
 let current: LanguageId = 'en';
 let listeners: ((id: LanguageId) => void)[] = [];

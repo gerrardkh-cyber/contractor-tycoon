@@ -8,6 +8,7 @@ export const strings = {
   app: {
     title: 'Contractor Tycoon',
     loading: 'Loading site…',
+    preview: 'PREVIEW',
   },
 
   topBar: {

@@ -19,6 +19,7 @@
 //   t7 --bid--> t8 --3s--> done
 
 import { data, type GameEvent, type GameState } from '../core';
+import { storageKey } from '../save';
 import { toggleClass } from './dom';
 import { percent } from './format';
 import { createSpotlight } from './spotlight';
@@ -32,7 +33,7 @@ export type TargetName =
   | 'namedCard' | 'siteProgress' | 'cash' | 'toast'
   | 'rainChoice' | 'punchButton' | 'siteCard' | 'tierButtons' | 'subcontractors';
 
-const STORAGE_KEY = 'contractor-tycoon:guide';
+const STORAGE_KEY = storageKey('guide');
 
 /** Steps during which the first job is the only thing worth looking at. */
 const FIRST_JOB: StepId[] = ['t1', 't2', 't2cash', 'watch', 't3', 't4', 't5', 't6'];

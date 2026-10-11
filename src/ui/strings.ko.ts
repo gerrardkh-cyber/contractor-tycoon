@@ -12,6 +12,7 @@ export const ko: StringTable = {
   app: {
     title: '컨트랙터 타이쿤',
     loading: '현장 준비 중…',
+    preview: 'PREVIEW',
   },
 
   topBar: {

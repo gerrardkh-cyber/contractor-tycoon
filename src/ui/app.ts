@@ -20,7 +20,7 @@ import {
   type GameState,
   type Rng,
 } from '../core';
-import { clearSave, createAutosave, load, save, type OfflineSummary } from '../save';
+import { clearSave, createAutosave, load, PREVIEW_BUILD, save, storageKey, type OfflineSummary } from '../save';
 import { clear, el, toggleClass } from './dom';
 import { faviconDataUrl } from './icons';
 import { initMotion, noteFrame } from './motion';
@@ -43,7 +43,7 @@ import { theme } from './theme';
 import type { Ctx } from './context';
 
 const STEP_SEC = 0.1;
-const HINT_KEY = 'contractor-tycoon:hint';
+const HINT_KEY = storageKey('hint');
 
 export function mount(root: HTMLElement): void {
   injectStyles();
@@ -53,6 +53,11 @@ export function mount(root: HTMLElement): void {
   initLanguage();
   document.title = strings.app.title;
   applyFavicon();
+
+  // The preview build says so, in a corner, over everything.
+  if (PREVIEW_BUILD) {
+    document.body.append(el('div', { class: 'preview-badge', 'aria-hidden': 'true' }, [strings.app.preview]));
+  }
 
   // Shapes, not a blank page, while the save is read.
   root.append(createSkeleton());

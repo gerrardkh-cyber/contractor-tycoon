@@ -747,6 +747,12 @@ details>summary::-webkit-details-marker{display:none}
 }
 .spot-say{font-size:${f.title};font-weight:600;color:${c.text}}
 .spot-why{font-size:${f.small};color:${c.textDim};margin-top:${s.gapTiny}px}
+/* The preview build's corner mark: small, over everything, never in the way. */
+.preview-badge{
+  position:fixed;top:0;right:0;z-index:70;pointer-events:none;
+  padding:0 ${s.gapTiny}px;font-family:${f.mono};font-size:${f.tiny};font-weight:700;
+  letter-spacing:.08em;color:${c.bg};background:${c.accent};opacity:.85;
+}
 .spot-skip-host{position:fixed;top:${s.gap}px;right:${s.gap}px;z-index:57}
 .spot-skip{
   pointer-events:auto;background:${c.panelRaised};border-color:${c.border};

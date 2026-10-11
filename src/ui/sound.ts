@@ -10,6 +10,7 @@ import passUrl from './sounds/pass.ogg';
 import failUrl from './sounds/fail.ogg';
 import paymentUrl from './sounds/payment.ogg';
 import handoverUrl from './sounds/handover.ogg';
+import { storageKey } from '../save';
 import { theme } from './theme';
 
 export type CueName = 'click' | 'awarded' | 'pass' | 'fail' | 'payment' | 'handover';
@@ -23,7 +24,7 @@ const urls: Record<CueName, string> = {
   handover: handoverUrl,
 };
 
-const STORAGE_KEY = 'contractor-tycoon:sound';
+const STORAGE_KEY = storageKey('sound');
 
 /** Cues fired closer together than this are dropped, so a burst cannot stack. */
 const MIN_GAP_MS = 60;
