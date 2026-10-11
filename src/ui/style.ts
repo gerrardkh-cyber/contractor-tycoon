@@ -141,6 +141,10 @@ ${phase('night')}
   border-top:${s.hairline * 2}px solid ${c.groundLine};
   transition:background ${d.blendMs}ms ${easing.inOut};
 }
+.scene-ground-art{
+  position:absolute;left:0;right:0;top:0;background-repeat:repeat-x;
+  background-position:left top;pointer-events:none;
+}
 .scene-ground::after{
   content:'';position:absolute;left:0;right:0;top:0;height:${s.gap}px;
   background:linear-gradient(180deg,${c.shadow},${c.transparent});opacity:.5;
@@ -409,6 +413,33 @@ function building(): string {
 .bld-rain.is-on{opacity:1}
 .bld-rain line{stroke:${c.rain}}
 .bld-rain.is-on line{animation:rainfall ${m.rainMs}ms ${easing.linear} infinite}
+
+/*
+ * Order 009: parts with a picture. The drawn part underneath keeps its state
+ * classes for everything that reads them; it just stops being painted.
+ */
+.bld-art{transition:opacity ${m.slideInMs}ms ${easing.out}}
+.bld-art.is-waiting{opacity:.32}
+.bld-art.is-active{opacity:.82}
+.bld-art.is-done{opacity:1}
+.building.has-foundation-art .bld-foundation{fill:none;stroke:none}
+.building.has-foundation-art .bld-foundation.is-active{stroke:${c.accent};stroke-dasharray:${v.gridDash}}
+.building.has-roof-art .bld-roof .roof-deck,
+.building.has-roof-art .bld-roof .roof-parapet{display:none}
+.building.has-floor-art .bld-floor .floor-grid,
+.building.has-floor-art .bld-floor .floor-steel,
+.building.has-floor-art .bld-floor .floor-services,
+.building.has-floor-art .bld-floor .floor-wall{display:none}
+.building.has-floor-art .bld-floor.is-waiting .floor-art{opacity:.45}
+.floor-glow{fill:var(--window-lit);opacity:0;pointer-events:none;transition:opacity ${m.slideInMs * 4}ms ${easing.out}}
+.scene[data-phase="night"] .bld-floor.is-done .floor-glow{opacity:.34}
+.scene[data-phase="evening"] .bld-floor.is-done .floor-glow{opacity:.2}
+.building.has-crane-art .crane-base,
+.building.has-crane-art .crane-mast,
+.building.has-crane-art .crane-cab,
+.building.has-crane-art .crane-jib,
+.building.has-crane-art .crane-tie,
+.building.has-crane-art .crane-hoist{display:none}
 
 /* Topped out: the flag goes up and stays up. */
 .bld-flag{opacity:0;transition:opacity ${m.slideInMs}ms ${easing.out}}

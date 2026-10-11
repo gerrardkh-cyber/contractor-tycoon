@@ -383,6 +383,11 @@ const scene = {
   skylineFarHeight: 0.26,
   skylineNearHeight: 0.3,
   skylineSeed: 1973,
+  /** The drawn skylines' own boxes, when there is no picture for them. */
+  skylineViewHeight: { far: 42, near: 56 },
+  fenceViewWidth: 128,
+  /** How tall the ground picture is laid, from its top to the bottom edge. */
+  groundArtHeightPx: 220,
 
   /** How long one frame of a two-frame walk is held. */
   stepFrameMs: 260,
@@ -475,38 +480,6 @@ const daylight = {
   },
 } as const;
 
-/**
- * Replaceable art slots, one per scene layer.
- *
- * Every layer is drawn from vectors today. The six flat layers - sky, both
- * skylines, ground, fence and weather - take an image the moment their `src`
- * is set, with no other change.
- *
- * The building's own parts and the figures (`foundation`, `floorTile`, `roof`,
- * `crane`, `worker`, `truck`, `inspector`) are declared here but not wired yet:
- * each changes with the state of the job - a floor is unbuilt, framed,
- * serviced, at a gate or finished - and one picture cannot say which. They need
- * a slot per state, or a sheet with a frame per state, which is a decision for
- * order 009 rather than a guess here. docs/ART_SLOTS.md says which is which.
- */
-const art = {
-  sky: { src: null, w: 1920, h: 1080, repeat: 'none', alpha: false, frames: 1 },
-  skylineFar: { src: null, w: 1920, h: 420, repeat: 'x', alpha: true, frames: 1 },
-  skylineNear: { src: null, w: 1920, h: 560, repeat: 'x', alpha: true, frames: 1 },
-  ground: { src: null, w: 512, h: 260, repeat: 'x', alpha: false, frames: 1 },
-  fence: { src: null, w: 128, h: 96, repeat: 'x', alpha: true, frames: 1 },
-  foundation: { src: null, w: 480, h: 96, repeat: 'none', alpha: true, frames: 1 },
-  floorTile: { src: null, w: 480, h: 128, repeat: 'y', alpha: true, frames: 1 },
-  roof: { src: null, w: 520, h: 128, repeat: 'none', alpha: true, frames: 1 },
-  crane: { src: null, w: 640, h: 1024, repeat: 'none', alpha: true, frames: 1 },
-  worker: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
-  truck: { src: null, w: 320, h: 128, repeat: 'none', alpha: true, frames: 2 },
-  inspector: { src: null, w: 64, h: 128, repeat: 'none', alpha: true, frames: 3 },
-  weather: { src: null, w: 256, h: 256, repeat: 'xy', alpha: true, frames: 1 },
-} as const;
-
-export type ArtSlotId = keyof typeof art;
-export type ArtSlot = (typeof art)[ArtSlotId];
 export type DaylightPhase = (typeof daylight.phases)[number];
 
 export const theme = {
@@ -526,7 +499,6 @@ export const theme = {
   svg,
   scene,
   daylight,
-  art,
   font,
   layout,
   motion,
