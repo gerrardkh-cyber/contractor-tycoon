@@ -14,6 +14,12 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# The preview: a branch built with its own storage keys and a PREVIEW mark,
+# served from /preview/ next to the game. Re-run this workflow on main after
+# pushing that branch to refresh it.
+env:
+  PREVIEW_REF: order-009
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,6 +32,23 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PREVIEW_REF }}
+          path: preview-src
+      - name: Preview - install
+        working-directory: preview-src
+        run: npm ci
+      - name: Preview - test
+        working-directory: preview-src
+        run: npm test
+      - name: Preview - build into dist/preview
+        working-directory: preview-src
+        env:
+          VITE_PREVIEW: '1'
+        run: |
+          npm run build -- --outDir ../dist/preview --emptyOutDir
+          echo "preview built from $(git rev-parse --short HEAD)"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
