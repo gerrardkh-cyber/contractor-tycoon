@@ -140,7 +140,7 @@ ${phase('night')}
 #app.has-detail .scene{
   --ground:calc(100% - ${(sc.detailMaxRatio * 100).toFixed(1)}% - ${sc.tabBarHeight + sc.plotGapPx}px);
 }
-.scene-ground,.scene-row,.scene-skyline{
+.scene-ground,.scene-row,.scene-skyline,.scene-built{
   transition:top ${m.slideInMs * 2}ms ${easing.out},bottom ${m.slideInMs * 2}ms ${easing.out};
 }
 .scene-ground{
@@ -167,6 +167,13 @@ ${phase('night')}
   padding:0 ${sc.plotGapPx}px;overflow-x:auto;overflow-y:hidden;
   scroll-snap-type:x proximity;scrollbar-width:none;
 }
+/* Order 011 §4: the company's finished buildings stand behind the sites. */
+.scene-built{position:absolute;left:0;right:0;top:0;bottom:calc(100% - var(--ground));pointer-events:none;overflow:hidden}
+.built-track{position:absolute;left:0;right:0;top:0;bottom:0}
+.built-item{position:absolute;bottom:0;filter:saturate(${sc.landmarkSaturate}) brightness(${sc.landmarkBrightness})}
+.built-track.is-shuffling .built-item{transition:left ${sc.landmarkShuffleMs}ms ${easing.inOut}}
+.built-item .building{display:block;width:100%;height:100%}
+.built-item.is-arriving{opacity:0}
 /* Centres the row when it fits and leaves the first site reachable when it
    does not, which a centred justify-content would not. */
 .scene-row::before,.scene-row::after{content:'';flex:1 1 auto}
@@ -198,11 +205,23 @@ ${phase('night')}
 }
 .plot-fence{display:block;width:100%;height:${sc.fenceHeight}px;opacity:.8}
 .plot-fence .fence-post,.plot-fence .fence-rail{stroke:${c.steelDark}}
+/* Order 011 §8: the lot's sign stands on the ground, its posts through the fence. */
+.lot-sign{
+  order:-1;position:relative;z-index:1;width:${(sc.lotSignShare * 100).toFixed(0)}%;
+  display:flex;flex-direction:column;margin-bottom:-${sc.fenceHeight}px;
+}
+.lot-sign-posts{position:relative;height:${sc.lotSignPostPx + sc.fenceHeight}px}
+.lot-sign-post{
+  position:absolute;top:0;bottom:0;width:${sc.lotSignPostWidthPx}px;background:${c.steel};
+  border:${s.hairline}px solid ${c.steelDark};
+  left:${(sc.lotSignPostInset * 100).toFixed(0)}%;
+}
+.lot-sign-post + .lot-sign-post{left:auto;right:${(sc.lotSignPostInset * 100).toFixed(0)}%}
 .plot.is-empty .empty-lot{
-  width:100%;min-height:0;order:-1;margin-bottom:0;gap:${s.gapTiny}px;
+  width:100%;min-height:0;margin:0;gap:${s.gapTiny}px;
   padding:${s.padSmall}px;font-size:${f.small};
-  background:${c.panel};border:${s.hairline}px solid ${c.border};
-  border-bottom:0;border-radius:${s.radius}px ${s.radius}px 0 0;
+  background:${c.panel};border:${s.hairline * 2}px solid ${c.steelDark};
+  border-radius:${s.radiusSmall}px;
 }
 .plot.is-empty .slot-title{font-size:${f.body}}
 .plot.is-empty .btn{padding:${s.gapTiny}px ${s.gapSmall}px}
@@ -339,6 +358,10 @@ ${phase('night')}
 .topbar .stat-value{font-size:${f.body}}
 .topbar .bar{display:none}
 .topbar-tools{margin-left:auto}
+.topbar .topbar-gear{display:none}
+/* Order 011 §7: on a phone the language and sound switches live in the
+   settings; anywhere wider they stay in the HUD and are not repeated here. */
+.settings-row{display:none;align-items:center;justify-content:space-between;gap:${s.gap}px}
 
 .detail-host{
   max-height:${(sc.detailMaxRatio * 100).toFixed(0)}vh;
@@ -457,6 +480,11 @@ function building(): string {
 .bld-crane .crane-hook{stroke:${c.craneDark};fill:none;stroke-linecap:round}
 .bld-crane .crane-load{fill:${c.rebar};stroke:${c.craneDark};stroke-width:${v.wallStroke}}
 .bld-crane .crane-slew{transform-box:view-box}
+/* Order 011 A3: the top climbs as the floors rise, over new lengths of mast. */
+.bld-crane .crane-top{transform-box:view-box;transition:transform ${theme.scene.craneClimbMs}ms ${easing.inOut}}
+.bld-crane .crane-tile.is-hidden{display:none}
+.bld-crane .crane-tile.is-new{animation:mast-insert ${theme.scene.craneClimbMs}ms ${easing.out} both}
+.bld-crane.is-dismantling{animation:crane-down ${theme.scene.craneDownMs}ms ${easing.inOut} forwards}
 .bld-crane .crane-hoist{transform-box:view-box}
 .bld-crane.is-working .crane-slew{animation:crane-slew ${m.craneTurnMs}ms ${easing.linear} infinite}
 .bld-crane.is-working .crane-hoist{animation:crane-sway ${m.craneSwayMs}ms ${easing.inOut} infinite}
@@ -559,6 +587,9 @@ function panels(): string {
 .title-screen .title-buttons .btn{min-width:${s.titleButtonMinWidth}px}
 .title-screen .lang-toggle{margin-top:${s.gap}px}
 .title-screen .lang-btn{min-width:${s.touchTarget}px}
+/* Order 011 §9: as wide as the buttons above it, never the whole screen. */
+.title-screen .lang-toggle{width:${s.titleButtonMinWidth}px;max-width:100%}
+.title-screen .lang-toggle .btn{flex:1 1 0;min-width:0}
 
 .site{display:flex;flex-direction:column;gap:${s.gapSmall}px}
 .site-head{display:flex;justify-content:space-between;align-items:baseline;gap:${s.gapSmall}px}
@@ -859,8 +890,17 @@ html.guide-on .topbar{padding-top:${s.touchTarget + s.gapSmall}px}
   .topbar .stat{padding:${s.gapTiny}px ${s.gapSmall}px;gap:${s.gapTiny}px}
   .topbar .stat-label{font-size:${f.tiny}}
   .topbar .stat-value{font-size:${f.small}}
-  .topbar-tools{margin-left:${s.gapTiny}px}
+  /* Order 011 §7: one line - cash, trust, sites and the gear. A tap on a chip
+     shows the extras on a second line. */
+  .topbar{display:flex;flex-wrap:nowrap;align-items:center}
+  .topbar.is-expanded{flex-wrap:wrap}
+  .topbar .stat{cursor:pointer;min-width:0}
+  .topbar-tools{display:none}
+  .topbar .topbar-gear{display:inline-flex;margin-left:auto;flex:0 0 auto}
+  .topbar .stat{flex:0 1 auto}
+  .settings-row{display:flex}
   .topbar .stat.is-extra{display:none}
+  .topbar.is-expanded .stat.is-extra{display:flex}
   .plot.is-empty .empty-lot{font-size:${f.tiny};padding:${s.gapSmall}px}
   .btn.small,.btn.icon-only,.tier{min-height:${s.touchTarget}px}
   .btn.icon-only{min-width:${s.touchTarget}px}
@@ -989,6 +1029,8 @@ function animations(): string {
   0%,100%{transform:translateY(var(--cable-y,0))}
   45%,55%{transform:translateY(calc(var(--cable-y,0) * ${1 - v.hookLiftShare}))}
 }
+@keyframes mast-insert{from{opacity:0;transform:translateY(var(--tile,0))}to{opacity:1;transform:none}}
+@keyframes crane-down{from{transform:none}to{transform:translateY(var(--crane-sink,0))}}
 @keyframes crane-cable-lift{
   0%,100%{transform:scaleY(var(--cable,1))}
   45%,55%{transform:scaleY(calc(var(--cable,1) * ${1 - v.hookLiftShare}))}

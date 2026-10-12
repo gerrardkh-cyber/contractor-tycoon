@@ -20,7 +20,17 @@ import {
   type GameState,
   type Rng,
 } from '../core';
-import { clearSave, createAutosave, load, PREVIEW_BUILD, save, storageKey, type OfflineSummary } from '../save';
+import {
+  clearSave,
+  createAutosave,
+  load,
+  PREVIEW_BUILD,
+  builtRecordFor,
+  save,
+  storageKey,
+  type BuiltRecord,
+  type OfflineSummary,
+} from '../save';
 import { clear, el, toggleClass } from './dom';
 import { faviconDataUrl } from './icons';
 import { initMotion, noteFrame } from './motion';
@@ -103,10 +113,15 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   let results: BidResult[] = [];
   let hintStep = readHint();
   let overlay: HTMLElement | null = null;
+  /** The settings are the one dialog that switches language from inside itself. */
+  let settingsOpen = false;
+  // Order 011 §5: the buildings handed over, for the skyline. The scene shows
+  // the last few; the save keeps them all.
+  let built: BuiltRecord[] = loaded.built;
 
   clear(root);
   const toasts = new Toasts(document.body);
-  const autosave = createAutosave(() => ({ state, rng }));
+  const autosave = createAutosave(() => ({ state, rng, built }));
 
   const ctx: Ctx = {
     get state() {
@@ -151,6 +166,7 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
           clearSave();
           globalThis.location.reload();
         }, closeOverlay, () => markTutorialSeen(false)),
+        true,
       );
     },
   };
@@ -257,6 +273,8 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     scene.relabel();
     mountPanels();
     document.title = strings.app.title;
+    // Switched from inside the settings: show them again in the new words.
+    if (settingsOpen) ctx.openSettings();
     render();
   });
 
@@ -278,15 +296,17 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     }
   }
 
-  function showOverlay(node: HTMLElement): void {
+  function showOverlay(node: HTMLElement, settings = false): void {
     closeOverlay();
     overlay = node;
+    settingsOpen = settings;
     document.body.append(node);
   }
 
   function closeOverlay(): void {
     overlay?.remove();
     overlay = null;
+    settingsOpen = false;
   }
 
   function noteBidResult(before: GameState, after: GameState, rfqId: string): void {
@@ -339,10 +359,17 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
         return;
       }
 
-      case 'completed':
-        scene.completed(event.projectId);
+      case 'completed': {
+        // Repair work is not a building of the company's own: no record.
+        const record = builtRecordFor(event.typeId, (built[built.length - 1]?.order ?? 0) + 1);
+        if (record) {
+          built = [...built, record];
+          scene.setBuilt(built);
+        }
+        scene.completed(event.projectId, record);
         play('handover');
         return;
+      }
 
       case 'inspection': {
         const gate = (strings.gate as Record<string, string>)[event.gateId] ?? event.gateId;
@@ -456,12 +483,12 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     // Paint first, so a card exists for the events about to be announced.
     render();
     drainEvents();
-    autosave.tick(STEP_SEC, state, rng, Date.now());
+    autosave.tick(STEP_SEC, state, rng, Date.now(), built);
   }
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      autosave.flush(state, rng, Date.now());
+      autosave.flush(state, rng, Date.now(), built);
       return;
     }
     last = performance.now();
@@ -474,6 +501,8 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
     if (result.fresh || result.offlineSec < theme.motion.offlineModalMinSec) return;
     state = result.state;
     rng = result.rng;
+    built = result.built;
+    scene.setBuilt(built);
     seenEvents = state.log.length > 0 ? (state.log[state.log.length - 1] as GameEvent).id : null;
     showWelcomeBack(result.offlineSec, result.offlineCapped, result.summary);
     render();
@@ -486,8 +515,9 @@ function boot(root: HTMLElement, loaded: Loaded, seed: number): Game {
   // One step before the first paint, so the board is already full when the
   // player first looks at it rather than filling in on the next frame.
   state = advance(state, STEP_SEC, rng);
-  save(state, rng, Date.now());
+  save(state, rng, Date.now(), undefined, built);
   render();
+  scene.setBuilt(built);
 
   function start(): void {
     if (!loaded.fresh && loaded.offlineSec >= theme.motion.offlineModalMinSec) {

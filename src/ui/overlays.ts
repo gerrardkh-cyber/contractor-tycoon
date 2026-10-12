@@ -8,6 +8,8 @@ import { strings } from './strings';
 import { theme } from './theme';
 import type { ToastRequest } from './context';
 import type { OfflineSummary } from '../save';
+import { languageToggle } from './language';
+import { soundToggleButton } from './topbar';
 
 /**
  * What the guide's T3 step looks for. Any other toast - a lost bid, a defect -
@@ -111,6 +113,9 @@ export function settingsDialog(
 
   return modal([
     el('div', { class: 'modal-title', text: strings.settings.title }),
+    // Order 011 §7: on a phone these leave the HUD for here.
+    el('div', { class: 'settings-row' }, [el('span', { text: strings.settings.language }), languageToggle()]),
+    el('div', { class: 'settings-row' }, [el('span', { text: strings.settings.sound }), soundToggleButton()]),
     el('div', { class: 'modal-body' }, [
       el('span', { text: strings.settings.soundHint }),
       prefersReducedMotion() ? el('span', { text: strings.settings.motionReduced }) : null,

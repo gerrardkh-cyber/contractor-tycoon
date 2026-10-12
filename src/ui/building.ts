@@ -42,9 +42,14 @@ export interface Geometry {
   mastTop: number;
   /** Decision 010-8: how high the foundation stands above the ground. */
   foundationHeight: number;
+  floors: number;
+  /** Order 011 A2: false for a building put up without a tower crane. */
+  crane: boolean;
+  /** How far the crane's head or jib rises over its mast top. */
+  craneAbove: number;
   /** The crane's mast, on its centre line. */
   craneX: number;
-  /** The highest point of the crane, head or jib. */
+  /** The highest point of the crane at its tallest, head or jib; the roof without one. */
   craneTop: number;
   /** Building and crane head, left to right: what the camera keeps in frame. */
   frameLeft: number;
@@ -99,27 +104,32 @@ export function geometryFor(floors: number, typeId: string | null = null): Geome
   const bodyHeight = floors * floorHeight + Math.max(0, floors - 1) * s.floorGap;
   const structureHeight = foundationHeight + bodyHeight + roofBandHeight(floorHeight);
 
-  // Decision 010-1: the jib stands a floor and a half over the planned roof.
-  // A pictured crane gets there on whole lengths of mast, so a house gets a
-  // short crane and a block a tall one.
-  const pictured = craneArtSizes();
-  const reach = structureHeight + floorHeight * s.craneClearanceFloors;
-  const mastHeight = pictured
-    ? Math.ceil(reach / pictured.tileHeight) * pictured.tileHeight
-    : Math.max(s.craneMinHeight, reach);
-  const above = pictured ? Math.max(pictured.headHeight, pictured.jibAbove) : s.jibHeight;
-  const height = Math.round(s.topPad + mastHeight + above);
+  // Order 011 A2: a house goes up without a tower crane.
+  const crane = typeId === null || !s.cranelessTypes.includes(typeId);
+  // Order 011 A3: the crane climbs with the building, its jib a floor and a
+  // half over the highest floor in hand; this is how tall it ends up, over
+  // the top floor. A pictured crane gets there on whole lengths of mast.
+  const pictured = crane ? craneArtSizes() : null;
+  const mastHeight = crane
+    ? mastHeightFor(foundationHeight + bodyHeight + floorHeight * s.craneClearanceFloors, pictured?.tileHeight ?? null)
+    : 0;
+  const above = !crane ? 0 : pictured ? Math.max(pictured.headHeight, pictured.jibAbove) : s.jibHeight;
+  const height = Math.round(s.topPad + Math.max(structureHeight, mastHeight + above));
   const groundLevel = height;
 
   // The crane stands close on the building's right, the gap a share of its width.
   const bodyRight = s.bodyLeft + bodyWidth;
   const mastWidth = pictured ? s.craneMastWidth : s.mastWidth;
   const craneX = bodyRight + bodyWidth * s.craneGapShare + mastWidth / 2;
-  const headRight = pictured ? craneX + (1 - pictured.headPivot) * pictured.headWidth : craneX + s.craneBaseWidth / 2;
+  const headRight = !crane
+    ? bodyRight + s.foundationOverhang
+    : pictured
+      ? craneX + (1 - pictured.headPivot) * pictured.headWidth
+      : craneX + s.craneBaseWidth / 2;
   const shortArm = pictured ? pictured.pivot * pictured.jibWidth : s.jibBack;
 
   return {
-    width: craneX + Math.max(shortArm, headRight - craneX) + s.craneSidePad,
+    width: crane ? craneX + Math.max(shortArm, headRight - craneX) + s.craneSidePad : headRight + s.craneSidePad,
     height,
     groundLevel,
     structureHeight,
@@ -132,12 +142,45 @@ export function geometryFor(floors: number, typeId: string | null = null): Geome
     roofTop: groundLevel - structureHeight,
     mastTop: groundLevel - mastHeight,
     foundationHeight,
+    floors,
+    crane,
+    craneAbove: above,
     craneX,
-    craneTop: groundLevel - mastHeight - above,
+    craneTop: crane ? groundLevel - mastHeight - above : groundLevel - structureHeight,
     frameLeft: s.bodyLeft - s.foundationOverhang,
     frameRight: headRight,
     slices,
   };
+}
+
+/** A mast tall enough to put the jib `reach` over the ground: whole lengths of a pictured one. */
+function mastHeightFor(reach: number, tileHeight: number | null): number {
+  return tileHeight ? Math.ceil(reach / tileHeight) * tileHeight : Math.max(theme.svg.craneMinHeight, reach);
+}
+
+/**
+ * Order 011 A3: where the crane's mast top stands while `started` floors are
+ * in hand - a floor and a half over the highest of them, never past its full
+ * height. With no crane, the roof.
+ */
+export function craneMastTopFor(g: Geometry, started: number): number {
+  if (!g.crane) return g.roofTop;
+  const highest = Math.min(started, g.floors);
+  const floorTop = highest > 0 ? floorTopOf(g, highest - 1) : g.foundationTop;
+  const reach = g.groundLevel - floorTop + g.floorHeight * theme.svg.craneClearanceFloors;
+  return Math.max(g.mastTop, g.groundLevel - mastHeightFor(reach, craneArtSizes()?.tileHeight ?? null));
+}
+
+/** The crane's highest point while `started` floors are in hand; the roof with no crane. */
+export function craneTopFor(g: Geometry, started: number): number {
+  return g.crane ? craneMastTopFor(g, started) - g.craneAbove : g.roofTop;
+}
+
+/** How many floors of a project have their framing under way or done. */
+export function floorsStarted(project: Project): number {
+  return project.tasks.filter(
+    (task) => task.stageId === 'structural' && task.floor !== null && task.status !== 'waiting',
+  ).length;
 }
 
 /**
@@ -154,21 +197,15 @@ function baySlices(typeId: string | null): TileSlice[] | null {
   const edges = [0, ...columns.slice(1, -1), 1];
   const bays: TileSlice[] = edges.slice(1).map((to, i) => ({ from: edges[i] ?? 0, to }));
   const want = typeId === null ? undefined : theme.svg.baysByType[typeId];
-  if (want === undefined || want === bays.length) return [{ from: 0, to: 1 }];
+  // Order 011 A1: never more than the picture has - no bay is drawn twice.
+  if (want === undefined || want >= bays.length) return [{ from: 0, to: 1 }];
 
-  const first = bays[0];
-  const last = bays[bays.length - 1];
-  if (!first || !last) return null;
-  let picked: TileSlice[];
-  if (want < bays.length) {
-    const left = Math.ceil(want / 2);
-    picked = [...bays.slice(0, left), ...bays.slice(bays.length - (want - left))];
-  } else {
-    const middle = bays.length > 2 ? bays.slice(1, -1) : [first];
-    picked = [first];
-    for (let i = 0; i < want - 2; i += 1) picked.push(middle[i % middle.length] ?? first);
-    picked.push(last);
-  }
+  const left = Math.ceil(want / 2);
+  const picked = [...bays.slice(0, left), ...bays.slice(bays.length - (want - left))];
+  // A single bay keeps the right end too: the outer half of the last column,
+  // meeting the bay's own half column as one whole end column.
+  const lastColumn = columns[columns.length - 1];
+  if (want - left === 0 && lastColumn !== undefined) picked.push({ from: lastColumn, to: 1 });
   // Bays that were neighbours in the picture stay one piece.
   const joined: TileSlice[] = [];
   for (const bay of picked) {
@@ -199,10 +236,16 @@ export interface BuildingView {
   markFail(floor: number | null): void;
   /** Handover: flash, and raise the flag. */
   celebrate(): void;
+  /** Shows the building finished, every part done and the flag up. */
+  finish(): void;
   dispose(): void;
 }
 
-export function createBuildingView(floors: number, typeId: string | null = null): BuildingView {
+export function createBuildingView(
+  floors: number,
+  typeId: string | null = null,
+  options: { landmark?: boolean } = {},
+): BuildingView {
   const g = geometryFor(floors, typeId);
   const s = theme.svg;
 
@@ -292,9 +335,10 @@ export function createBuildingView(floors: number, typeId: string | null = null)
   const punchLayer = svgEl('g', { class: 'bld-punch' });
   svg.append(punchLayer);
 
-  const crane = buildCrane(g);
-  svg.append(crane.group);
-  toggleClass(svg, 'has-crane-art', crane.art);
+  // Order 011 A2: a house has no tower crane, and a finished landmark none either.
+  const crane = g.crane && !options.landmark ? buildCrane(g) : null;
+  if (crane) svg.append(crane.group);
+  toggleClass(svg, 'has-crane-art', crane?.art ?? false);
   let liftedFloor: number | null = null;
 
   const badgeLayer = svgEl('g', { class: 'bld-badges' });
@@ -347,10 +391,14 @@ export function createBuildingView(floors: number, typeId: string | null = null)
           (task.status === 'working' || task.status === 'rework') &&
           (task.stageId === 'structural' || task.stageId === 'foundation'),
       );
-    if (working !== craneWorking) {
-      craneWorking = working;
-      toggleClass(crane.group, 'is-working', working);
-      toggleClass(crane.group, 'is-idle', !working);
+    if (crane) {
+      // Order 011 A3: the crane climbs with the floors in hand.
+      crane.setHeight(craneMastTopFor(g, floorsStarted(project)));
+      if (working !== craneWorking) {
+        craneWorking = working;
+        toggleClass(crane.group, 'is-working', working);
+        toggleClass(crane.group, 'is-idle', !working);
+      }
     }
 
     // The hook rides up to whichever floor is being framed.
@@ -363,7 +411,7 @@ export function createBuildingView(floors: number, typeId: string | null = null)
     const target = working && framing ? framing.floor : null;
     if (target !== liftedFloor) {
       liftedFloor = target;
-      crane.setDrop(target === null ? crane.restY : floorTopOf(g, target));
+      crane?.setDrop(target === null ? null : floorTopOf(g, target));
     }
 
     if (project.punchOpen !== punchShown) {
@@ -373,7 +421,24 @@ export function createBuildingView(floors: number, typeId: string | null = null)
   }
 
   /** Handover: the whole building flashes and the flag goes up. */
+  function finish(): void {
+    const file = artFor(FLOOR_PIECE.done);
+    for (const parts of floorParts) {
+      setAttr(parts.group, 'class', 'bld-floor is-done');
+      parts.state = 'done';
+      parts.raised = true;
+      if (file) for (const image of parts.art) setAttr(image, 'href', file.url);
+    }
+    setBandClass(foundation, 'bld-foundation', 'done');
+    setBandClass(envelope, 'bld-envelope', 'done');
+    setBandClass(roof.group, 'bld-roof', 'done');
+    if (foundationArt) setBandClass(foundationArt, 'bld-art bld-foundation-art', 'done');
+    if (roofArt) setBandClass(roofArt, 'bld-art bld-roof-art', 'done');
+    svg.classList.add('is-topped-out');
+  }
+
   function celebrate(): void {
+    crane?.dismantle();
     svg.classList.add('is-topped-out');
     replayAnimation(svg, 'is-celebrating');
     const timer = globalThis.setTimeout(
@@ -413,7 +478,7 @@ export function createBuildingView(floors: number, typeId: string | null = null)
     clear(badgeLayer);
   }
 
-  return { node: svg, geometry: g, update, markPass, markFail, celebrate, dispose };
+  return { node: svg, geometry: g, update, markPass, markFail, celebrate, finish, dispose };
 }
 
 // ---- pieces ---------------------------------------------------------------
@@ -548,6 +613,29 @@ function cappedArt(
     pictureSlice(file, file.w - halfPx, file.w, x + half, y, half, shown, 'bld-art-piece').frame,
   );
   return group;
+}
+
+/**
+ * Order 011 §4: a handed-over building as it stands in the company's skyline:
+ * finished, no crane and no flag, the drawing cropped to the building itself.
+ * Width and height are in drawing units.
+ */
+export function createLandmark(
+  floors: number,
+  typeId: string,
+): { node: SVGSVGElement; width: number; height: number } {
+  const view = createBuildingView(floors, typeId, { landmark: true });
+  view.finish();
+  // The flag marks a handover on site; in the skyline it is just a building.
+  view.node.classList.remove('is-topped-out');
+  const g = view.geometry;
+  const left = g.frameLeft;
+  const width = g.bodyRight + theme.svg.foundationOverhang - left;
+  const top = g.roofTop;
+  const height = g.groundLevel - top;
+  view.node.setAttribute('viewBox', `${left} ${top} ${width} ${height}`);
+  view.node.style.aspectRatio = `${width} / ${height}`;
+  return { node: view.node, width, height };
 }
 
 /** The top edge of a floor, in viewBox units. */
@@ -803,15 +891,20 @@ function setBandClass(node: SVGElement, base: string, state: BandState): void {
 
 function buildCrane(g: Geometry): {
   group: SVGGElement;
-  /** Lets the hook down to a height, in drawing units. */
-  setDrop(y: number): void;
-  restY: number;
+  /** Lets the hook down to a height in drawing units, or to its rest with null. */
+  setDrop(y: number | null): void;
+  /** Order 011 A3: climbs (or settles) to put the mast top here. */
+  setHeight(mastTop: number): void;
+  /** Order 011 A3: handover - the crane comes down and is gone. */
+  dismantle(): void;
   art: boolean;
 } {
   const s = theme.svg;
   const group = svgEl('g', { class: 'bld-crane is-idle' });
   const x = g.craneX;
   const half = s.mastWidth / 2;
+  // Everything is drawn at the crane's full height; while it climbs, the top
+  // rides lower and only the lengths of mast under it show.
   const top = g.mastTop;
 
   // Base pad.
@@ -825,40 +918,35 @@ function buildCrane(g: Geometry): {
     }),
   );
 
-  // Mast: two legs with rungs between them.
+  // Mast: two legs with rungs between them, up to wherever the top is now.
   const mast = svgEl('g', { class: 'crane-mast' });
-  mast.append(
-    svgEl('line', {
-      x1: x - half,
-      y1: g.groundLevel - s.craneBaseHeight,
-      x2: x - half,
-      y2: top,
-      'stroke-width': s.mastStroke,
-    }),
-    svgEl('line', {
-      x1: x + half,
-      y1: g.groundLevel - s.craneBaseHeight,
-      x2: x + half,
-      y2: top,
-      'stroke-width': s.mastStroke,
-    }),
-  );
-  for (let y = top; y < g.groundLevel - s.craneBaseHeight; y += s.mastRungGap) {
-    mast.append(
-      svgEl('line', {
-        class: 'crane-rung',
-        x1: x - half,
-        y1: y,
-        x2: x + half,
-        y2: y + s.mastRungGap / 2,
-        'stroke-width': s.mastStroke / 2,
-      }),
-    );
-  }
   group.append(mast);
-  // The pictured mast and head, when there are pictures, stand behind the jib.
+  function drawMast(upTo: number): void {
+    clear(mast);
+    const foot = g.groundLevel - s.craneBaseHeight;
+    mast.append(
+      svgEl('line', { x1: x - half, y1: foot, x2: x - half, y2: upTo, 'stroke-width': s.mastStroke }),
+      svgEl('line', { x1: x + half, y1: foot, x2: x + half, y2: upTo, 'stroke-width': s.mastStroke }),
+    );
+    for (let y = upTo; y < foot; y += s.mastRungGap) {
+      mast.append(
+        svgEl('line', {
+          class: 'crane-rung',
+          x1: x - half,
+          y1: y,
+          x2: x + half,
+          y2: y + s.mastRungGap / 2,
+          'stroke-width': s.mastStroke / 2,
+        }),
+      );
+    }
+  }
+  // The pictured lengths of mast, when there are pictures.
   const standing = svgEl('g', { class: 'crane-standing' });
   group.append(standing);
+
+  // The top: head, jib, counter-jib, cab, trolley and hook. It climbs as one.
+  const topGroup = svgEl('g', { class: 'crane-top' });
 
   // The slewing part: jib, counter-jib, cab, trolley and hook all turn together.
   const slew = svgEl('g', { class: 'crane-slew' });
@@ -904,26 +992,30 @@ function buildCrane(g: Geometry): {
   // hook below hang from where it was, so they can ride to a floor.
   const pictured = craneArtSizes();
   const art = pictured !== null;
+  const tiles: SVGImageElement[] = [];
+  let tileHeight = 0;
   let hoistX = x - s.jibLength * s.hookTrolleyTo;
   let cableTop = top;
   if (pictured) {
-    const { head, mast: mastTile, jib, tileHeight, headWidth, headHeight, pivot, jibWidth, jibHeight } = pictured;
-    const tiles = Math.round((g.groundLevel - top) / tileHeight);
-    for (let i = 0; i < tiles; i += 1) {
-      standing.append(
-        svgEl('image', {
-          class: 'crane-art',
-          href: mastTile.url,
-          x: x - s.craneMastWidth / 2,
-          y: g.groundLevel - (i + 1) * tileHeight,
-          width: s.craneMastWidth,
-          // A hair of overlap so stacked tiles never show a hairline gap.
-          height: tileHeight + s.tileOverlap,
-          preserveAspectRatio: 'none',
-        }),
-      );
+    const { head, mast: mastTile, jib, headWidth, headHeight, pivot, jibWidth, jibHeight } = pictured;
+    tileHeight = pictured.tileHeight;
+    standing.style.setProperty('--tile', `${tileHeight.toFixed(2)}px`);
+    const count = Math.round((g.groundLevel - top) / tileHeight);
+    for (let i = 0; i < count; i += 1) {
+      const tile = svgEl('image', {
+        class: 'crane-art crane-tile',
+        href: mastTile.url,
+        x: x - s.craneMastWidth / 2,
+        y: g.groundLevel - (i + 1) * tileHeight,
+        width: s.craneMastWidth,
+        // A hair of overlap so stacked tiles never show a hairline gap.
+        height: tileHeight + s.tileOverlap,
+        preserveAspectRatio: 'none',
+      });
+      tiles.push(tile);
+      standing.append(tile);
     }
-    standing.append(
+    topGroup.append(
       svgEl('image', {
         class: 'crane-art',
         href: head.url,
@@ -959,7 +1051,6 @@ function buildCrane(g: Geometry): {
   // the stylesheet can sway and bob them together off one length.
   const hoist = svgEl('g', { class: 'crane-hoist' });
   hoist.style.transformOrigin = `${hoistX}px ${cableTop}px`;
-  const restY = cableTop + Math.max(s.craneMinHeight / 3, (g.groundLevel - top) * s.hookRestShare);
   const cable = svgEl('line', {
     class: 'crane-cable',
     x1: hoistX,
@@ -995,18 +1086,60 @@ function buildCrane(g: Geometry): {
   );
   hoist.append(cable, block);
   slew.append(hoist);
-  group.append(slew);
+  topGroup.append(slew);
+  group.append(topGroup);
 
-  function setDrop(y: number): void {
+  /** How far below its full height the top rides now. */
+  let offset = -1;
+  let shown = tiles.length;
+  let drop: number | null = null;
+
+  function setDrop(y: number | null): void {
+    drop = y;
+    const from = cableTop + Math.max(0, offset);
+    // At rest the hook hangs part way down the mast as it stands now.
+    const target = y ?? from + Math.max(s.craneMinHeight / 3, (g.groundLevel - from) * s.hookRestShare);
     // The block always hangs clear of the trolley, and above the floor it
     // serves rather than inside it.
-    const length = Math.max(s.hookSize, y - cableTop - hung - s.hookSize);
+    const length = Math.max(s.hookSize, target - from - hung - s.hookSize);
     hoist.style.setProperty('--cable', length.toFixed(1));
     hoist.style.setProperty('--cable-y', `${length.toFixed(1)}px`);
   }
-  setDrop(restY);
 
-  return { group, setDrop, restY, art };
+  function setHeight(mastTop: number): void {
+    const next = Math.max(0, mastTop - top);
+    if (Math.abs(next - offset) < 1e-6) return;
+    const first = offset < 0;
+    offset = next;
+    // The first placing is where the crane already stands; after that the
+    // top climbs, over the new lengths of mast as they go in.
+    if (first) topGroup.style.transition = 'none';
+    topGroup.style.transform = `translateY(${offset.toFixed(2)}px)`;
+    if (first) {
+      void topGroup.getBoundingClientRect();
+      topGroup.style.transition = '';
+    }
+    if (tiles.length > 0) {
+      const count = Math.round((g.groundLevel - mastTop) / tileHeight);
+      tiles.forEach((tile, i) => {
+        toggleClass(tile, 'is-hidden', i >= count);
+        if (!first && i >= shown && i < count) replayAnimation(tile, 'is-new');
+      });
+      shown = count;
+    } else {
+      drawMast(mastTop);
+    }
+    setDrop(drop);
+  }
+
+  function dismantle(): void {
+    // Down into the ground it stands on, which the drawing ends at.
+    const sink = g.groundLevel - (top + Math.max(0, offset)) + g.craneAbove;
+    group.style.setProperty('--crane-sink', `${sink.toFixed(1)}px`);
+    group.classList.add('is-dismantling');
+  }
+
+  return { group, setDrop, setHeight, dismantle, art };
 }
 
 function renderPunch(layer: SVGGElement, g: Geometry, open: number, previous: number): void {

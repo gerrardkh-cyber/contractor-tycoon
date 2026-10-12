@@ -125,7 +125,9 @@ const svg = {
    * building of each type is, cut at column centres. A type not listed takes
    * the whole picture.
    */
-  baysByType: { repair: 2, house: 2, lowrise: 4 } as Readonly<Record<string, number>>,
+  baysByType: { repair: 1, house: 1, lowrise: 2 } as Readonly<Record<string, number>>,
+  /** Order 011 A2: types built without a tower crane. */
+  cranelessTypes: ['house', 'repair'] as readonly string[],
   /** Overlap between pieces of one picture laid side by side or stacked, so no hairline shows. */
   tileOverlap: 0.3,
 
@@ -163,7 +165,7 @@ const svg = {
   /** How much of the cable the bob takes up while the crane works. */
   hookLiftShare: 0.3,
   loadSize: 7,
-  /** Decision 010-1: the jib stands this many floors over the planned roof. */
+  /** Order 011 A3: the jib stands this many floors over the highest floor in hand. */
   craneClearanceFloors: 1.5,
   craneMinHeight: 52,
 
@@ -418,6 +420,11 @@ const scene = {
 
   /** Empty lot: fence posts and the sign that sells the slot. */
   fenceHeight: 34,
+  /** Order 011 §8: a lot's sign - its share of the lot's width, and its posts. */
+  lotSignShare: 0.82,
+  lotSignPostPx: 22,
+  lotSignPostWidthPx: 4,
+  lotSignPostInset: 0.16,
   fencePostGap: 22,
   fencePostWidth: 2,
   fenceRailOffset: 8,
@@ -502,6 +509,25 @@ const scene = {
 
   /** Handover. */
   celebrateMs: 1500,
+  /** Order 011 A3: a climb of the crane, and its coming down at handover. */
+  craneClimbMs: 600,
+  craneDownMs: 800,
+  /**
+   * Order 011 §4-6: the company's finished buildings, behind the sites. They
+   * stand at this share of the camera's scale - or smaller, so the tallest
+   * never takes more than `landmarkRoomShare` of the room under the HUD -
+   * this many at most, and fly back from the site in `landmarkMoveMs`.
+   */
+  landmarkScale: 0.6,
+  landmarkRoomShare: 0.8,
+  landmarkMax: 12,
+  landmarkMoveMs: 800,
+  /** Kept between neighbours in the skyline, and the slide when they make room. */
+  landmarkGapPx: 12,
+  landmarkShuffleMs: 600,
+  /** The skyline sits back: a touch greyer and darker than the sites. */
+  landmarkSaturate: 0.85,
+  landmarkBrightness: 0.9,
   flagWidth: 12,
   flagHeight: 8,
   flagPoleHeight: 16,

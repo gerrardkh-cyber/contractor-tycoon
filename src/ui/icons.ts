@@ -38,6 +38,7 @@ const paths = {
   speaker: 'M4 9.5h3.5L12 6v12L7.5 14.5H4z',
   speakerWaves: 'M15.5 9.8a3.5 3.5 0 0 1 0 4.4M18 7.6a7 7 0 0 1 0 8.8',
   speakerMuted: 'M15.5 10l4 4M19.5 10l-4 4',
+  gear: 'M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2.1 2.1M15.9 15.9 18 18M6 18l2.1-2.1M15.9 8.1 18 6',
 
   /*
    * The crane behind the title, drawn the way one actually stands: a latticed
@@ -116,6 +117,11 @@ export function soundIcon(on: boolean): SVGSVGElement {
     on ? ['speaker', 'speakerWaves'] : ['speaker', 'speakerMuted'],
     'icon',
   );
+}
+
+/** Order 011 §7: the settings gear in the HUD. */
+export function gearIcon(): SVGSVGElement {
+  return iconStack(['gear'], 'icon');
 }
 
 /** The crane silhouette behind the title screen, on its own larger grid. */

@@ -6,7 +6,7 @@
 import { data, netWorth } from '../core';
 import { button, el, setBar, setClass, setText } from './dom';
 import { money } from './format';
-import { soundIcon } from './icons';
+import { gearIcon, soundIcon } from './icons';
 import { languageToggle } from './language';
 import { labelWithTip } from './tooltip';
 import { NumberTween } from './motion';
@@ -36,27 +36,26 @@ export function createTopBar(ctx: Ctx): TopBar {
     el('span', { class: 'stat-value' }),
   ]);
 
-  const soundButton = button(soundIcon(soundEnabled()), () => {
-    const on = toggleSound();
-    // The click is the gesture that unlocks audio, so it is worth hearing.
-    if (on) play('click');
-  }, { class: 'btn small icon-only', ariaLabel: strings.settings.sound });
-  refreshSoundLabel(soundButton);
-  onSoundChange(() => refreshSoundLabel(soundButton));
-
   cash.node.setAttribute('data-guide', 'cash');
-  // Order 008 §1 names four chips. Net worth is the one beyond them, so it is
-  // the one a phone drops.
+  // Order 011 §7: on a phone the bar is one line - cash, trust and sites.
+  // Licence and net worth are the extras: tapping any chip shows them too.
+  // Language and sound fold into the settings, behind one gear at the right.
   worth.node.classList.add('is-extra');
+  license.classList.add('is-extra');
+  debt.node.classList.add('is-extra');
+  const chips = [cash.node, debt.node, worth.node, trust.node, license, sites];
+  const gear = button(gearIcon(), () => ctx.openSettings(), {
+    class: 'btn small icon-only topbar-gear',
+    ariaLabel: strings.settings.open,
+  });
   const node = el('div', { class: 'topbar' }, [
-    cash.node,
-    debt.node,
-    worth.node,
-    trust.node,
-    license,
-    sites,
-    el('div', { class: 'topbar-tools' }, [languageToggle(), soundButton]),
+    ...chips,
+    el('div', { class: 'topbar-tools' }, [languageToggle(), soundToggleButton()]),
+    gear,
   ]);
+  for (const chip of chips) {
+    chip.addEventListener('click', () => node.classList.toggle('is-expanded'));
+  }
 
   const company = ctx.state.company;
   cash.tween.reset(company.cash);
@@ -108,6 +107,28 @@ function tweenStat(label: string, extra?: string): TweenStat {
     value,
   ]);
   return { node, value, tween: new NumberTween(0) };
+}
+
+/** The sound on/off switch; the HUD and the settings each carry one. */
+export function soundToggleButton(): HTMLButtonElement {
+  const node = button(soundIcon(soundEnabled()), () => {
+    const on = toggleSound();
+    // The click is the gesture that unlocks audio, so it is worth hearing.
+    if (on) play('click');
+  }, { class: 'btn small icon-only', ariaLabel: strings.settings.sound });
+  refreshSoundLabel(node);
+  // The HUD is rebuilt on a language change and the settings on every
+  // opening: once this button has been on screen and is gone, it lets go.
+  let shown = false;
+  const off = onSoundChange(() => {
+    if (node.isConnected) shown = true;
+    else if (shown) {
+      off();
+      return;
+    }
+    refreshSoundLabel(node);
+  });
+  return node;
 }
 
 function refreshSoundLabel(node: HTMLButtonElement): void {

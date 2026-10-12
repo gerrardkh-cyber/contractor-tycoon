@@ -27,7 +27,16 @@ export function languageToggle(className = 'lang-toggle'): HTMLElement {
 
   host.append(...buttons);
   sync();
-  onLanguageChange(sync);
+  // Once this switch has been on screen and is gone, it stops listening.
+  let shown = false;
+  const off = onLanguageChange(() => {
+    if (host.isConnected) shown = true;
+    else if (shown) {
+      off();
+      return;
+    }
+    sync();
+  });
 
   function sync(): void {
     const active = language();

@@ -63,8 +63,12 @@ export function toggleSound(): boolean {
   return enabled;
 }
 
-export function onSoundChange(listener: (on: boolean) => void): void {
+/** Returns an unsubscribe: a control that goes away must stop listening. */
+export function onSoundChange(listener: (on: boolean) => void): () => void {
   listeners = [...listeners, listener];
+  return () => {
+    listeners = listeners.filter((entry) => entry !== listener);
+  };
 }
 
 /**
